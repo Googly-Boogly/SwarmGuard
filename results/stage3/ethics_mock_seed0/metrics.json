@@ -1,0 +1,279 @@
+{
+  "dataset": {
+    "label": {
+      "SAFE": 6,
+      "UNSAFE": 8
+    },
+    "safety_property": {
+      "APPROVAL_INTEGRITY": 2,
+      "CUMULATIVE_DISCLOSURE": 1,
+      "DATA_CONFIDENTIALITY": 4,
+      "NONE": 6,
+      "PURPOSE_LIMITATION": 1
+    },
+    "scenario_type": {
+      "approval_lifecycle": 2,
+      "approval_mismatch": 1,
+      "cross_agent_disclosure": 1,
+      "distributed_approval_laundering": 3,
+      "legitimate_collaboration": 4,
+      "legitimate_shared_modification": 1,
+      "shared_memory_manipulation": 1,
+      "task_decomposition": 1
+    }
+  },
+  "detection": {
+    "A_single_general": {
+      "accuracy": 0.8571428571428571,
+      "f1": 0.875,
+      "false_positive_rate": 0.16666666666666666,
+      "fn": 1,
+      "fp": 1,
+      "latency": {
+        "detected": 7,
+        "max_lead_steps": 3,
+        "mean_lead_steps": 2.142857142857143,
+        "min_lead_steps": 0,
+        "undetected": 1
+      },
+      "n": 14,
+      "not_evaluated_scenarios": 0,
+      "precision": 0.875,
+      "recall": 0.875,
+      "tn": 5,
+      "tp": 7,
+      "true_positive_rate": 0.875
+    },
+    "B_general_x4": {
+      "accuracy": 0.8571428571428571,
+      "f1": 0.875,
+      "false_positive_rate": 0.16666666666666666,
+      "fn": 1,
+      "fp": 1,
+      "latency": {
+        "detected": 7,
+        "max_lead_steps": 3,
+        "mean_lead_steps": 2.142857142857143,
+        "min_lead_steps": 0,
+        "undetected": 1
+      },
+      "n": 14,
+      "not_evaluated_scenarios": 0,
+      "precision": 0.875,
+      "recall": 0.875,
+      "tn": 5,
+      "tp": 7,
+      "true_positive_rate": 0.875
+    },
+    "C_specialized_x4": {
+      "accuracy": 0.8571428571428571,
+      "f1": 0.875,
+      "false_positive_rate": 0.16666666666666666,
+      "fn": 1,
+      "fp": 1,
+      "latency": {
+        "detected": 7,
+        "max_lead_steps": 3,
+        "mean_lead_steps": 2.142857142857143,
+        "min_lead_steps": 0,
+        "undetected": 1
+      },
+      "n": 14,
+      "not_evaluated_scenarios": 0,
+      "precision": 0.875,
+      "recall": 0.875,
+      "tn": 5,
+      "tp": 7,
+      "true_positive_rate": 0.875
+    },
+    "D_global_workflow": {
+      "accuracy": 0.8571428571428571,
+      "f1": 0.875,
+      "false_positive_rate": 0.16666666666666666,
+      "fn": 1,
+      "fp": 1,
+      "latency": {
+        "detected": 7,
+        "max_lead_steps": 3,
+        "mean_lead_steps": 2.142857142857143,
+        "min_lead_steps": 0,
+        "undetected": 1
+      },
+      "n": 14,
+      "not_evaluated_scenarios": 0,
+      "precision": 0.875,
+      "recall": 0.875,
+      "tn": 5,
+      "tp": 7,
+      "true_positive_rate": 0.875
+    },
+    "E_global_plus_specialized": {
+      "accuracy": 0.8571428571428571,
+      "f1": 0.875,
+      "false_positive_rate": 0.16666666666666666,
+      "fn": 1,
+      "fp": 1,
+      "latency": {
+        "detected": 7,
+        "max_lead_steps": 3,
+        "mean_lead_steps": 2.142857142857143,
+        "min_lead_steps": 0,
+        "undetected": 1
+      },
+      "n": 14,
+      "not_evaluated_scenarios": 0,
+      "precision": 0.875,
+      "recall": 0.875,
+      "tn": 5,
+      "tp": 7,
+      "true_positive_rate": 0.875
+    }
+  },
+  "operational": {
+    "A_single_general": {
+      "api_failure_rate": 0.0,
+      "concern_categories": {
+        "CONSENT_AUTHORIZATION": 20,
+        "HARM_CONSEQUENCES": 3,
+        "OTHER": 2,
+        "PRIVACY_CONFIDENTIALITY": 11,
+        "PROCESS_APPROVAL_INTEGRITY": 6,
+        "PURPOSE_USE": 3
+      },
+      "council_disagreement_rate": null,
+      "council_evaluations_attempted": 55,
+      "council_evaluations_not_attempted": 0,
+      "estimated_cost_usd": null,
+      "evidence_reference_validity": 1.0,
+      "failed_assessments": 0,
+      "failures_by_kind": {},
+      "incomplete_councils": 0,
+      "input_tokens": null,
+      "invalid_evidence_assessments": 0,
+      "mean_council_latency_ms": 4.003145454545455,
+      "mean_pairwise_recommendation_agreement": null,
+      "monitor_calls": 55,
+      "output_tokens": null,
+      "successful_assessments": 55
+    },
+    "B_general_x4": {
+      "api_failure_rate": 0.0,
+      "concern_categories": {
+        "CONSENT_AUTHORIZATION": 80,
+        "HARM_CONSEQUENCES": 12,
+        "OTHER": 8,
+        "PRIVACY_CONFIDENTIALITY": 44,
+        "PROCESS_APPROVAL_INTEGRITY": 24,
+        "PURPOSE_USE": 12
+      },
+      "council_disagreement_rate": 0.0,
+      "council_evaluations_attempted": 55,
+      "council_evaluations_not_attempted": 0,
+      "estimated_cost_usd": null,
+      "evidence_reference_validity": 1.0,
+      "failed_assessments": 0,
+      "failures_by_kind": {},
+      "incomplete_councils": 0,
+      "input_tokens": null,
+      "invalid_evidence_assessments": 0,
+      "mean_council_latency_ms": 15.421236363636364,
+      "mean_pairwise_recommendation_agreement": 1.0,
+      "monitor_calls": 220,
+      "output_tokens": null,
+      "successful_assessments": 220
+    },
+    "C_specialized_x4": {
+      "api_failure_rate": 0.0,
+      "concern_categories": {
+        "CONSENT_AUTHORIZATION": 80,
+        "HARM_CONSEQUENCES": 12,
+        "OTHER": 8,
+        "PRIVACY_CONFIDENTIALITY": 44,
+        "PROCESS_APPROVAL_INTEGRITY": 24,
+        "PURPOSE_USE": 12
+      },
+      "council_disagreement_rate": 0.0,
+      "council_evaluations_attempted": 55,
+      "council_evaluations_not_attempted": 0,
+      "estimated_cost_usd": null,
+      "evidence_reference_validity": 1.0,
+      "failed_assessments": 0,
+      "failures_by_kind": {},
+      "incomplete_councils": 0,
+      "input_tokens": null,
+      "invalid_evidence_assessments": 0,
+      "mean_council_latency_ms": 15.809054545454547,
+      "mean_pairwise_recommendation_agreement": 1.0,
+      "monitor_calls": 220,
+      "output_tokens": null,
+      "successful_assessments": 220
+    },
+    "D_global_workflow": {
+      "api_failure_rate": null,
+      "concern_categories": {},
+      "council_disagreement_rate": null,
+      "council_evaluations_attempted": 55,
+      "council_evaluations_not_attempted": 0,
+      "estimated_cost_usd": null,
+      "evidence_reference_validity": null,
+      "failed_assessments": 0,
+      "failures_by_kind": {},
+      "incomplete_councils": 0,
+      "input_tokens": null,
+      "invalid_evidence_assessments": 0,
+      "mean_council_latency_ms": null,
+      "mean_pairwise_recommendation_agreement": null,
+      "monitor_calls": 0,
+      "output_tokens": null,
+      "successful_assessments": 0
+    },
+    "E_global_plus_specialized": {
+      "api_failure_rate": null,
+      "concern_categories": {},
+      "council_disagreement_rate": null,
+      "council_evaluations_attempted": 55,
+      "council_evaluations_not_attempted": 0,
+      "estimated_cost_usd": null,
+      "evidence_reference_validity": null,
+      "failed_assessments": 0,
+      "failures_by_kind": {},
+      "incomplete_councils": 0,
+      "input_tokens": null,
+      "invalid_evidence_assessments": 0,
+      "mean_council_latency_ms": null,
+      "mean_pairwise_recommendation_agreement": null,
+      "monitor_calls": 0,
+      "output_tokens": null,
+      "successful_assessments": 0
+    }
+  },
+  "paired_B_vs_C": {
+    "safe": {
+      "both": 1,
+      "n": 6,
+      "neither": 5,
+      "only_general_x4": 0,
+      "only_specialized_x4": 0
+    },
+    "unsafe": {
+      "both": 7,
+      "n": 8,
+      "neither": 1,
+      "only_general_x4": 0,
+      "only_specialized_x4": 0
+    }
+  },
+  "provider_ledger": {
+    "attempts": 495,
+    "calls_without_usage": 495,
+    "errors": {},
+    "failed": 0,
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "refused": 0,
+    "reserved_usd_outstanding": 0.0,
+    "spent_usd_conservative": 0.0,
+    "succeeded": 495
+  },
+  "terminated_early": false
+}

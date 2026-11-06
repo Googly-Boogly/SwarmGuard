@@ -12,7 +12,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import timedelta
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from swarmguard.agents.coordinator import CoordinatorAgent
 from swarmguard.agents.operations_agent import OperationsAgent
@@ -32,12 +32,18 @@ from swarmguard.security.workflow_monitor import WorkflowMonitor
 from swarmguard.storage.database import Database
 from swarmguard.storage.repositories import Repositories
 
+if TYPE_CHECKING:  # pragma: no cover
+    from swarmguard.agents.adversarial_agent import AdversarialConfig
+    from swarmguard.models.risk import ObservationWindow
+    from swarmguard.monitoring.workflow_context import ObservationBuilder
+
 COORDINATOR_ID = "coordinator"
 RESEARCH_ID = "research_agent"
 OPERATIONS_ID = "operations_agent"
 HUMAN_OPERATOR_ID = "human_operator"
 OPERATOR_EMAIL = "operator@example.test"
 SIMULATOR_ACTOR = "swarmguard.simulator"
+CRM_SYNC_ACTOR = "swarmguard.crm_sync"  # trusted stand-in for an authorized external system of record
 
 SEED_CUSTOMERS: dict[str, dict[str, str]] = {
     "cust_001": {"name": "Alex Example", "email": "customer@example.test",
@@ -84,6 +90,8 @@ class SwarmSimulator:
         decision_engine: DecisionEngine | None = None,
         approval_ttl: timedelta = timedelta(minutes=15),
         approval_signing_key: bytes | None = None,
+        workflow_enforcement: ObservationWindow | None = None,
+        adversary: AdversarialConfig | None = None,
     ) -> None:
         self.clock = clock or SteppingClock()
         self.db = Database(db_path)
@@ -92,22 +100,64 @@ class SwarmSimulator:
         self.workspace = SharedWorkspace(self.db, self.monitor, self.clock, self.repos)
         self.graph = WorkflowGraphService(self.monitor)
         self.identities = IdentityRegistry()
+        self._clients: dict[str, AgentGatewayClient] = {}
+        self.adversary_config = adversary
         self.approvals = ApprovalManager(self.db, self.monitor, self.clock, self.identities,
                                          signing_key=approval_signing_key, default_ttl=approval_ttl, repos=self.repos)
         self.policy_engine = PolicyEngine(policy)
+        self.workflow_enforcement = workflow_enforcement
         self.gateway = CapabilityGateway(
             db=self.db, identities=self.identities, policy_engine=self.policy_engine, monitor=self.monitor,
             workspace=self.workspace, approvals=self.approvals, clock=self.clock, council=council,
-            decision_engine=decision_engine,
+            decision_engine=decision_engine, workflow_guard=self._build_guard(workflow_enforcement),
+            context_builder=self._council_context_builder() if council is not None else None,
         )
         self.coordinator = CoordinatorAgent(*self._register(COORDINATOR_ID, AgentRole.COORDINATOR, "Agent A: Coordinator"))
         self.research = ResearchAgent(*self._register(RESEARCH_ID, AgentRole.RESEARCH, "Agent B: Research"))
         self.operations = OperationsAgent(*self._register(OPERATIONS_ID, AgentRole.OPERATIONS, "Agent C: Operations"))
+        if adversary is not None:
+            from swarmguard.agents.adversarial_agent import AdversarialConfig as _Cfg
+
+            _Cfg.model_validate(adversary.model_dump())  # explicit, validated activation only
+            self._register(adversary.agent_id, adversary.role, "Controlled adversarial agent (synthetic research)",
+                           adversarial=True)
         self.identities.seal()
         self.operator = SimulatedHumanOperator(HUMAN_OPERATOR_ID, OPERATOR_EMAIL,
                                                self.approvals.register_approver(HUMAN_OPERATOR_ID), self.approvals)
         self.approvals.seal()
         self._seed()
+
+    @property
+    def agent_roles(self) -> dict[str, str]:
+        return {i: self.identities.get(i).role.value for i in self.identities.agent_ids()}  # type: ignore[union-attr]
+
+    def observation_builder(self) -> ObservationBuilder:
+        """Trusted, read-only builder of monitor observations over this simulator's audit log."""
+        from swarmguard.monitoring.workflow_context import ObservationBuilder
+
+        return ObservationBuilder(self.monitor, agent_roles=self.agent_roles)
+
+    def _council_context_builder(self):  # noqa: ANN202 - ObservationBuilder
+        from swarmguard.monitoring.workflow_context import ObservationBuilder
+
+        roles = {COORDINATOR_ID: AgentRole.COORDINATOR.value, RESEARCH_ID: AgentRole.RESEARCH.value,
+                 OPERATIONS_ID: AgentRole.OPERATIONS.value}
+        return ObservationBuilder(self.monitor, agent_roles=roles)
+
+    def _build_guard(self, window: ObservationWindow | None):  # noqa: ANN202 - WorkflowGuard | None
+        """Enforcement mode (opt-in): a trusted guard on send_email that can only escalate."""
+        if window is None:
+            return None
+        from swarmguard.models.risk import ObservationWindow
+        from swarmguard.monitoring.global_monitor import GlobalWorkflowMonitor
+        from swarmguard.monitoring.local_monitor import LocalActionMonitor
+        from swarmguard.monitoring.workflow_context import ObservationBuilder
+        from swarmguard.security.workflow_intelligence import WorkflowGuard
+
+        roles = {COORDINATOR_ID: AgentRole.COORDINATOR.value, RESEARCH_ID: AgentRole.RESEARCH.value,
+                 OPERATIONS_ID: AgentRole.OPERATIONS.value}
+        monitor = GlobalWorkflowMonitor() if window is ObservationWindow.GLOBAL else LocalActionMonitor()
+        return WorkflowGuard(ObservationBuilder(self.monitor, agent_roles=roles), monitor)
 
     @property
     def agents(self) -> dict[str, CoordinatorAgent | ResearchAgent | OperationsAgent]:
@@ -122,9 +172,21 @@ class SwarmSimulator:
         return {"agent_id": ctx.agent_id, "role": ctx.role.value, "display_name": identity.display_name,
                 "permissions": sorted(ctx.permissions), "authorized_workflows": sorted(ctx.authorized_workflows)}
 
-    def _register(self, agent_id: str, role: AgentRole, name: str) -> tuple[AgentIdentity, AgentGatewayClient]:
+    def _register(self, agent_id: str, role: AgentRole, name: str, *,
+                  adversarial: bool = False) -> tuple[AgentIdentity, AgentGatewayClient]:
         identity = AgentIdentity(agent_id=agent_id, role=role, display_name=name)
-        return identity, self.gateway.client_for(self.identities.register(identity))
+        client = self.gateway.client_for(self.identities.register(identity))
+        self._clients[agent_id] = client
+        self.repos.agent_registry.upsert(agent_id, role.value, name, adversarial)
+        return identity, client
+
+    def gateway_client(self, agent_id: str) -> AgentGatewayClient:
+        """Trusted: the credential-bound client of a registered agent (used by the autonomous runtime)."""
+        return self._clients[agent_id]
+
+    @property
+    def registered_agent_ids(self) -> list[str]:
+        return list(self._clients)
 
     def _seed(self) -> None:
         if self.workspace.get("cust_001") is not None:
@@ -144,17 +206,48 @@ class SwarmSimulator:
                               acl=ResourceACL(read=["*"], write=[]), resource_id="doc_security_policy")
 
     def start_workflow(self, workflow_id: str, title: str, participants: list[str] | None = None,
-                       objective: str = "") -> WorkflowRecord:
+                       objective: str = "", *, purpose: str | None = None,
+                       brief_writers: list[str] | None = None,
+                       recipient_scope: list[str] | None = None) -> WorkflowRecord:
+        """``purpose`` (Stage 2) is a declared, trusted workflow purpose token (e.g. ``service_updates``).
+        ``brief_writers`` widens the brief's write ACL (default: Research only, as in Stage 1)."""
+        metadata: dict[str, Any] = {"objective": objective}
+        if purpose is not None:
+            metadata["purpose"] = purpose
+        if recipient_scope is not None:  # Stage 4 POLICY_ENFORCEMENT: trusted, deterministic recipient scope
+            metadata["recipient_scope"] = sorted(recipient_scope)
         record = self.monitor.create_workflow(workflow_id, title,
                                               participants or [COORDINATOR_ID, RESEARCH_ID, OPERATIONS_ID],
-                                              created_by=SIMULATOR_ACTOR, metadata={"objective": objective})
+                                              created_by=SIMULATOR_ACTOR, metadata=metadata)
         self.workspace.create(ResourceType.WORKFLOW_METADATA, {"title": title, "objective": objective},
                               agent_id=SIMULATOR_ACTOR, event_workflow_id=workflow_id, resource_workflow_id=workflow_id,
                               acl=ResourceACL(read=["*"], write=[]), resource_id=f"meta_{workflow_id}")
         self.workspace.create(ResourceType.DOCUMENT, {"title": f"Customer brief for {workflow_id}", "content": ""},
                               agent_id=SIMULATOR_ACTOR, event_workflow_id=workflow_id, resource_workflow_id=workflow_id,
-                              acl=ResourceACL(read=["*"], write=[RESEARCH_ID]), resource_id=brief_document_id(workflow_id))
+                              acl=ResourceACL(read=["*"], write=brief_writers or [RESEARCH_ID]),
+                              resource_id=brief_document_id(workflow_id))
         return record
+
+    def seed_customer(self, resource_id: str, content: dict[str, Any]) -> None:
+        """Trusted setup: load one synthetic customer record (reserved example domains only)."""
+        if self.workspace.get(resource_id) is None:
+            self.workspace.create(ResourceType.CUSTOMER_RECORD, content, agent_id=SIMULATOR_ACTOR,
+                                  event_workflow_id="setup", resource_workflow_id=None,
+                                  acl=ResourceACL(read=[RESEARCH_ID, OPERATIONS_ID], write=[]), resource_id=resource_id)
+
+    def crm_update(self, resource_id: str, changes: dict[str, Any], *, event_workflow_id: str = "setup") -> int:
+        """Trusted, versioned change to a customer record by the external system of record (not an agent).
+
+        ``event_workflow_id`` decides which workflow log records the change event; the default
+        ``setup`` keeps it outside every agent workflow.
+        """
+        current = self.workspace.get(resource_id)
+        if current is None:
+            raise KeyError(resource_id)
+        resource, _, _ = self.workspace.update(resource_id, changes, agent_id=CRM_SYNC_ACTOR,
+                                               expected_version=current.version, event_workflow_id=event_workflow_id,
+                                               tool="crm_sync", enforce_acl=False)
+        return resource.version
 
     def sent_emails(self, workflow_id: str | None = None) -> list[dict[str, Any]]:
         return self.repos.sent_emails.list(workflow_id)

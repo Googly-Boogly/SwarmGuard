@@ -14,6 +14,7 @@ class Settings:
     approval_ttl_minutes: int = 15
     api_host: str = "127.0.0.1"
     api_port: int = 8000
+    results_dir: str = "results"
 
     @classmethod
     def from_env(cls) -> Settings:
@@ -23,6 +24,7 @@ class Settings:
             approval_ttl_minutes=int(os.environ.get("SWARMGUARD_APPROVAL_TTL_MINUTES", cls.approval_ttl_minutes)),
             api_host=os.environ.get("SWARMGUARD_API_HOST", cls.api_host),
             api_port=int(os.environ.get("SWARMGUARD_API_PORT", cls.api_port)),
+            results_dir=os.environ.get("SWARMGUARD_RESULTS_DIR", cls.results_dir),
         )
 
 

@@ -17,7 +17,7 @@ from typing import Any
 from swarmguard.clock import Clock
 from swarmguard.models.actions import ActionRequest
 from swarmguard.models.approvals import ApprovalRecord
-from swarmguard.models.assessments import WorkflowContext
+from swarmguard.models.assessments import CouncilEvaluationRecord, CouncilReport, WorkflowContext
 from swarmguard.models.decisions import Decision, DecisionRecord
 from swarmguard.models.events import ActorType, EventType, WorkflowEvent
 from swarmguard.models.workflows import SharedResource, WorkflowRecord, WorkflowStatus, WorkflowSummary
@@ -181,6 +181,20 @@ class WorkflowMonitor:
         self._repos.decisions.upsert(record.model_copy(update={"executed": executed, "execution_status": status}))
 
     # ------------------------------------------------------------------ queries
+
+    def record_council_evaluation(self, report: CouncilReport, *, snapshot_digest: str | None = None,
+                                  experiment_id: str | None = None) -> CouncilEvaluationRecord:
+        """Persist an advisory council result (Stage 3). Writes no workflow event, so recorded advice
+        never becomes part of the history that later monitors observe."""
+        record = CouncilEvaluationRecord(
+            evaluation_id=self._db.next_id("ethics_eval"), workflow_id=report.workflow_id or "unknown",
+            action_id=report.action_id, council_type=report.council_type, experiment_id=experiment_id,
+            snapshot_digest=snapshot_digest, report=report, created_at=self._clock.now())
+        self._repos.ethics.insert(record)
+        return record
+
+    def get_council_evaluations(self, workflow_id: str) -> list[CouncilEvaluationRecord]:
+        return self._repos.ethics.for_workflow(workflow_id)
 
     def get_workflow_history(self, workflow_id: str) -> list[WorkflowEvent]:
         return self._repos.events.query(workflow_id=workflow_id)

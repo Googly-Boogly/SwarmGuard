@@ -2,9 +2,11 @@
 
 Stage 1 foundation: simulator, workflow monitoring, deterministic authorization,
 human approvals, capability gateway, and ethics-council interfaces (mock monitors).
+Stage 2: cross-agent workflow intelligence, workflow safety invariants, local vs. global
+safety monitors, a synthetic scenario library and a reproducible paired evaluation.
 
 Core invariant: agents propose actions; trusted Python code authorizes execution.
 """
 
-__version__ = "0.2.0"
-STAGE = "stage-1-foundation"
+__version__ = "0.4.0"
+STAGE = "stage-3-ethics-council"

@@ -1,4 +1,4 @@
-# SwarmGuard Architecture (Stage 1)
+# SwarmGuard Architecture (Stages 1–3)
 
 > **Core invariant:** LLMs propose actions. Trusted Python code authorizes execution.
 > In Stage 1 the "LLMs" are deterministic scripted agents.
@@ -21,6 +21,15 @@
 | Workflow monitor / graph | `swarmguard/security/workflow_{monitor,graph}.py` | trusted |
 | SQLite persistence | `swarmguard/storage/{database,repositories}.py` | trusted |
 | Observability API | `swarmguard/api.py`, `main.py` | read-only |
+| **Stage 2:** observation builder | `swarmguard/monitoring/workflow_context.py` | trusted, read-only |
+| **Stage 2:** invariants, detectors, risk analyzer | `swarmguard/security/{invariants,pattern_detector,risk_analyzer}.py` | trusted, deterministic, side-effect free |
+| **Stage 2:** local / global safety monitors | `swarmguard/monitoring/{local_monitor,global_monitor}.py` | **advisory** (observation mode) |
+| **Stage 2:** workflow intelligence engine | `swarmguard/security/workflow_intelligence.py` | trusted, read-only |
+| **Stage 2:** workflow guard (enforcement mode, opt-in) | `WorkflowGuard` in `workflow_intelligence.py` | trusted; can only escalate |
+| **Stage 2:** scenarios, runner, results | `swarmguard/evaluation/` | research harness (drives agents only via gateway) |
+| **Stage 3:** LLM provider interface, mock, budget and retry wrappers | `swarmguard/llm/` | trusted plumbing, no network |
+| **Stage 3:** OpenAI adapter, provider factory | `swarmguard_providers/` | **network-capable; outside the core**; returns data only |
+| **Stage 3:** LLM ethics monitors, general baseline, council, aggregation, disagreement | `swarmguard/ethics/` | **advisory**; untrusted outputs, validated |
 
 ## 2. Trust boundaries in SQLite
 
@@ -142,9 +151,82 @@ Other queries:
 
 All four Stage 1 monitors are **mocks**: one or two hand-written event or keyword rules each, labeled `is_mock=True` and `[MOCK heuristic, not an LLM assessment]`.
 
-## 11. Stage 2 extension points
+## 11. Stage 2: workflow intelligence and local vs. global monitoring
 
-- `EthicsMonitor` is the LLM monitor interface; `WorkflowContext` is its input contract.
-- `evaluation/baselines.py::restrict_context` provides the action-only condition.
-- `ActionProposal` is the output contract for LLM-driven agents.
-- `evaluation/runner.py::ExperimentConfig` / `EvaluationResult` define the experiment format.
+```text
+Multi-Agent Simulator (scripted, untrusted agents)
+         |  ActionProposal (only path)
+         v
+Capability Gateway ──▶ PolicyEngine ──▶ [optional WorkflowGuard: ALLOW→ESCALATE only] ──▶ MockToolExecutor
+         |                                                                         (trusted execution boundary)
+         v
+Shared Workspace (versioned)  +  Workflow Event Store (SQLite, Boundary C)
+         |
+         v
+ObservationBuilder.snapshot(workflow, cutoff_seq)     ← one as-of snapshot per checkpoint, no later events
+         |
+    +----+-----------------+
+    |                      |
+    v                      v
+local(): action,        global_(): all events ≤ cutoff, referenced
+target version,         resource versions, replayed approvals,
+cited approval          prior actions, workflow purpose
+    |                      |
+    v                      v
+LocalActionMonitor     GlobalWorkflowMonitor      ← both call the SAME RiskAnalyzer
+    |                      |                        (pattern detectors + invariants A–E)
+    +----------+-----------+
+               v
+   SafetyAssessment (advisory)  ──▶  Research Evaluation (runner) ──▶ Metrics and Results (results/<id>/)
+               │
+               └──▶ WorkflowIntelligenceEngine ──▶ GET /workflows/{id}/risk|patterns|dependencies
+                                             └──▶ WorkflowContext.workflow_analysis (ethics council, Stage 3)
+```
+
+**The Capability Gateway remains the only trusted execution boundary.** Monitors receive only a frozen `MonitorContext`. They hold no database, workspace, executor, approval manager or policy handle, and they cannot execute, approve or block anything.
+
+### 11.1 As-of snapshots (temporal integrity)
+`ObservationBuilder.snapshot(workflow_id, cutoff_seq)` includes:
+- events with `seq ≤ cutoff_seq`, with the `WORKFLOW_STARTED` summary neutralized because titles are scenario-author metadata;
+- the actions proposed in that window;
+- the immutable `resource_versions` referenced by in-window events, or by in-window actions *as of their own proposal*, and created at or before the cutoff;
+- approval views whose status is **replayed** from approval events up to the cutoff, plus time-based expiry at the checkpoint time.
+
+The mutable current rows (approval status, resource content) are never read. The snapshot digest (SHA-256 of canonical JSON) is stored with every assessment.
+
+### 11.2 Invariants, detectors and aggregation
+These are listed in `docs/STAGE2_RESEARCH_DESIGN.md` §5. Every finding carries:
+- `basis`: EXPLICIT (follows from IDs, versions or statuses) or HEURISTIC (value matching in text);
+- `actionable` and `is_violation` flags;
+- evidence event IDs.
+
+`RiskAnalyzer` raises `EvidenceIntegrityError` if a finding cites an event outside its input context. Cross-agent modification is reported but is never by itself a violation.
+
+### 11.3 Observation mode vs. enforcement mode
+- **Observation (default).** `SwarmSimulator(...)` has no guard, so monitor output never affects a decision. The evaluation runner and the API reconstruct assessments from the log.
+- **Enforcement (opt-in).** `SwarmSimulator(workflow_enforcement=ObservationWindow.GLOBAL|LOCAL)` passes a trusted `WorkflowGuard` to the gateway. The guard runs only for `send_email`, and only after the policy engine returned ALLOW. Its assessment is recorded as a `WORKFLOW_RISK_ASSESSMENT` event and in `DecisionRecord.details.workflow_guard`. `DecisionEngine.combine` turns ALLOW into ESCALATE `WORKFLOW_RISK_ESCALATION` if the guard alerts. A guard exception fails closed (BLOCK `INTERNAL_ERROR`). The guard cannot relax a BLOCK or ESCALATE.
+
+### 11.4 Workflow intelligence engine
+`WorkflowIntelligenceEngine` provides:
+- `analyze_workflow(workflow_id)`: participants, resources, explicit cross-agent dependencies (`parent_action_ids`, plus *read r@vN produced by another agent's action*), shared-resource modifications by principal, approval relationships, data-flow traces, and a global assessment at every outbound or approval-citing checkpoint, each on its own as-of snapshot;
+- `analyze_proposed_action(action, context)`;
+- `enrich_ethics_context(WorkflowContext)`: attaches `workflow_analysis` (additive, optional field) for future LLM ethics monitors.
+
+### 11.5 Evaluation harness
+`evaluation/scenarios/` (14 scenarios; Stage 1 scenarios kept in `scenarios/stage1.py` and re-exported), `datasets.py` (seeded order, neutral workflow IDs), `experiment.py` (configurations), `runner.py::run_stage2_experiment`, `metrics.py`, `results.py` (JSON and CSV under `results/<experiment_id>/`).
+
+### 11.6 Stage 3 extension points
+- `monitoring/base.py::SafetyMonitor.evaluate(action, MonitorContext) -> SafetyAssessment` is the LLM-monitor interface. Implementations must return a valid `SafetyAssessment` citing only context event IDs (enforced for `RiskAnalyzer`; LLM monitors should get the same validation).
+- `EthicsMonitor.evaluate(action, WorkflowContext)` is unchanged. `WorkflowContext.workflow_analysis` carries the structured analysis. `EthicsCouncil.evaluate` is an alias of `deliberate`.
+- New windows, for example one-hop provenance, are new `ObservationBuilder` methods plus a `MONITOR_CONFIGURATIONS` entry.
+
+## 12. Stage 3: LLM ethics council
+
+Full design: `docs/STAGE3_ETHICS_RESEARCH.md`.
+
+- **Provider layer.** `LLMProvider.generate_structured(...) -> ProviderResult` never raises for provider errors; it returns classified failures. The stack is `RetryingProvider → GuardedProvider (request cap, pre-request cost reservation, bounded concurrency) → MockLLMProvider | OpenAIProvider`. `OpenAIProvider` (Responses API, `with_raw_response.parse`, `store=False`, SDK retries off, key scrubbing) lives in `swarmguard_providers/`, which the core never imports, so `swarmguard/` keeps its AST-enforced no-network invariant. Entry-point scripts build the stack (`swarmguard_providers/factory.py`).
+- **Monitors.** `LLMEthicsMonitor` (`ethics/base.py`) is the single implementation behind `VirtueEthicsMonitor`, `ConsequentialistMonitor`, `DeontologicalMonitor`, `CareEthicsMonitor` and `GeneralSafetyMonitor`. Only the framework, and therefore the prompt perspective block, differs. It keeps `EthicsMonitor.evaluate(action, WorkflowContext)`. The Stage 1 mocks are unchanged.
+- **Context.** `ObservationBuilder.ethics_context(snapshot, action_id)` returns a `WorkflowContext` whose new optional `observation` field is the Stage 2 GLOBAL as-of `MonitorContext`. Mutable current-state fields (`resource`, `approvals`) are left empty to prevent future-status leakage. `prompts.user_content` serializes `observation` as untrusted JSON. At gateway time, the gateway attaches the same observation when a council is configured.
+- **Council.** `EthicsCouncil` runs monitors concurrently (optional semaphore) with a per-monitor timeout, records every failure as a `MonitorFailure` (kind, invalid evidence IDs, call metadata, elapsed time), preserves every assessment unmerged, and aggregates with a configurable `Aggregator`. The Stage 1 default is `UNANIMITY`. `CouncilReport` gains additive fields (council type, aggregation method, failed/expected monitors, disagreement report, per-monitor timings).
+- **Authorization.** Unchanged. A council report reaches the decision engine only through `DecisionEngine.combine`, where advice can only turn ALLOW into ESCALATE. A policy BLOCK or ESCALATE is final. An incomplete council recommends at least ESCALATE. Monitors hold no capability.
+- **Persistence.** The `ethics_evaluations` table (Boundary C) is written only by `WorkflowMonitor.record_council_evaluation`, and writes no workflow event, so recorded advice never enters later observations. Experiment files go to `results/stage3/<id>/`. Read-only API: `/workflows/{id}/ethics`, `/ethics/assessments`, `/ethics/disagreement`, `/evaluations/ethics[/{id}]`. No endpoint triggers an LLM call.

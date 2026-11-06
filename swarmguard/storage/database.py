@@ -159,8 +159,78 @@ CREATE TABLE IF NOT EXISTS sent_emails (
     status TEXT NOT NULL,
     sent_at TEXT NOT NULL
 );
+
+-- Stage 3 (Boundary C): advisory ethics-council results recorded by trusted harness code.
+-- Written via WorkflowMonitor.record_council_evaluation only; never by monitors or agents.
+CREATE TABLE IF NOT EXISTS ethics_evaluations (
+    evaluation_id TEXT PRIMARY KEY,
+    workflow_id TEXT NOT NULL,
+    action_id TEXT NOT NULL,
+    council_type TEXT NOT NULL,
+    experiment_id TEXT,
+    snapshot_digest TEXT,
+    report_json TEXT NOT NULL,
+    created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_ethics_workflow ON ethics_evaluations(workflow_id, evaluation_id);
+
+-- Stage 4 (Boundary C unless noted): autonomous-runtime audit records, written only by trusted code.
+CREATE TABLE IF NOT EXISTS agent_messages (
+    message_id TEXT PRIMARY KEY,
+    workflow_id TEXT NOT NULL,
+    sender_id TEXT NOT NULL,
+    recipient_id TEXT NOT NULL,
+    message_type TEXT NOT NULL,
+    text TEXT NOT NULL,
+    parent_message_id TEXT,
+    action_id TEXT,
+    event_id TEXT,
+    is_system INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_messages_workflow ON agent_messages(workflow_id, message_id);
+CREATE TABLE IF NOT EXISTS agent_decisions (
+    decision_record_id TEXT PRIMARY KEY,
+    workflow_id TEXT NOT NULL,
+    agent_id TEXT NOT NULL,
+    step INTEGER NOT NULL,
+    record_json TEXT NOT NULL,
+    created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_agent_decisions_workflow ON agent_decisions(workflow_id, step);
+CREATE TABLE IF NOT EXISTS interventions (
+    intervention_id TEXT PRIMARY KEY,
+    workflow_id TEXT NOT NULL,
+    record_json TEXT NOT NULL,
+    created_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS autonomous_assessments (
+    assessment_id TEXT PRIMARY KEY,
+    workflow_id TEXT NOT NULL,
+    action_id TEXT NOT NULL,
+    monitor TEXT NOT NULL,
+    record_json TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_auto_assess_workflow ON autonomous_assessments(workflow_id, assessment_id);
+-- private agent working memory (readable only by its owner through the runtime)
+CREATE TABLE IF NOT EXISTS agent_memory (
+    entry_id TEXT PRIMARY KEY,
+    workflow_id TEXT NOT NULL,
+    agent_id TEXT NOT NULL,
+    kind TEXT NOT NULL,
+    content_json TEXT NOT NULL,
+    created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_memory_agent ON agent_memory(workflow_id, agent_id, entry_id);
+-- trusted registry snapshot (identity + role), written by the simulator at registration
+CREATE TABLE IF NOT EXISTS agent_registry (
+    agent_id TEXT PRIMARY KEY,
+    role TEXT NOT NULL,
+    display_name TEXT NOT NULL,
+    is_adversarial INTEGER NOT NULL DEFAULT 0
+);
 """
-SCHEMA_VERSION = "2"
+SCHEMA_VERSION = "4"
 
 
 class Database:

@@ -56,6 +56,12 @@ class ReasonCode(StrEnum):
     INTERNAL_ERROR = "INTERNAL_ERROR"
     # Advisory
     ETHICS_ESCALATION = "ETHICS_ESCALATION"
+    # Stage 2: trusted workflow-invariant guard (enforcement mode only; can only escalate)
+    WORKFLOW_RISK_ESCALATION = "WORKFLOW_RISK_ESCALATION"
+    # Stage 4
+    INVALID_RECIPIENT_AGENT = "INVALID_RECIPIENT_AGENT"
+    DELEGATION_EXCEEDS_PERMISSIONS = "DELEGATION_EXCEEDS_PERMISSIONS"
+    RECIPIENT_OUT_OF_WORKFLOW_SCOPE = "RECIPIENT_OUT_OF_WORKFLOW_SCOPE"
 
 
 class PolicyDecision(BaseModel):

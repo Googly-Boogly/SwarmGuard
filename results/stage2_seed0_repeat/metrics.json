@@ -1,0 +1,147 @@
+{
+  "dataset": {
+    "label": {
+      "SAFE": 6,
+      "UNSAFE": 8
+    },
+    "safety_property": {
+      "APPROVAL_INTEGRITY": 2,
+      "CUMULATIVE_DISCLOSURE": 1,
+      "DATA_CONFIDENTIALITY": 4,
+      "NONE": 6,
+      "PURPOSE_LIMITATION": 1
+    },
+    "scenario_type": {
+      "approval_lifecycle": 2,
+      "approval_mismatch": 1,
+      "cross_agent_disclosure": 1,
+      "distributed_approval_laundering": 3,
+      "legitimate_collaboration": 4,
+      "legitimate_shared_modification": 1,
+      "shared_memory_manipulation": 1,
+      "task_decomposition": 1
+    }
+  },
+  "detection": {
+    "global_workflow": {
+      "accuracy": 0.8571428571428571,
+      "at_critical_checkpoint": {
+        "accuracy": 0.8571428571428571,
+        "f1": 0.875,
+        "false_positive_rate": 0.16666666666666666,
+        "fn": 1,
+        "fp": 1,
+        "n": 14,
+        "precision": 0.875,
+        "recall": 0.875,
+        "tn": 5,
+        "tp": 7,
+        "true_positive_rate": 0.875
+      },
+      "f1": 0.875,
+      "false_positive_rate": 0.16666666666666666,
+      "fn": 1,
+      "fp": 1,
+      "latency": {
+        "detected": 7,
+        "max_lead_steps": 3,
+        "mean_lead_steps": 2.142857142857143,
+        "min_lead_steps": 0,
+        "undetected": 1
+      },
+      "n": 14,
+      "precision": 0.875,
+      "predicted_insufficient_information": 0,
+      "recall": 0.875,
+      "safe_checkpoint_alerts": 3,
+      "safe_checkpoints": 82,
+      "tn": 5,
+      "tp": 7,
+      "true_positive_rate": 0.875
+    },
+    "local_action": {
+      "accuracy": 0.5714285714285714,
+      "at_critical_checkpoint": {
+        "accuracy": 0.5714285714285714,
+        "f1": 0.5,
+        "false_positive_rate": 0.16666666666666666,
+        "fn": 5,
+        "fp": 1,
+        "n": 14,
+        "precision": 0.75,
+        "recall": 0.375,
+        "tn": 5,
+        "tp": 3,
+        "true_positive_rate": 0.375
+      },
+      "f1": 0.5,
+      "false_positive_rate": 0.16666666666666666,
+      "fn": 5,
+      "fp": 1,
+      "latency": {
+        "detected": 3,
+        "max_lead_steps": 8,
+        "mean_lead_steps": 2.6666666666666665,
+        "min_lead_steps": 0,
+        "undetected": 5
+      },
+      "n": 14,
+      "precision": 0.75,
+      "predicted_insufficient_information": 10,
+      "recall": 0.375,
+      "safe_checkpoint_alerts": 3,
+      "safe_checkpoints": 82,
+      "tn": 5,
+      "tp": 3,
+      "true_positive_rate": 0.375
+    }
+  },
+  "paired": {
+    "safe": {
+      "both_flagged": 0,
+      "n": 6,
+      "neither": 4,
+      "only_global": 1,
+      "only_local": 1
+    },
+    "unsafe": {
+      "both_flagged": 3,
+      "n": 8,
+      "neither": 1,
+      "only_global": 4,
+      "only_local": 0
+    }
+  },
+  "prevention": {
+    "deterministic_only": {
+      "prevented": 2,
+      "prevented_with_guard_escalation_only": 0,
+      "prevented_with_policy_block": 2,
+      "prevention_rate": 0.25,
+      "safe_scenarios": 6,
+      "safe_scenarios_completed": 6,
+      "safe_scenarios_with_guard_escalation": 0,
+      "unsafe_scenarios": 8
+    },
+    "global_enforcement": {
+      "prevented": 7,
+      "prevented_with_guard_escalation_only": 5,
+      "prevented_with_policy_block": 2,
+      "prevention_rate": 0.875,
+      "safe_scenarios": 6,
+      "safe_scenarios_completed": 5,
+      "safe_scenarios_with_guard_escalation": 1,
+      "unsafe_scenarios": 8
+    },
+    "local_enforcement": {
+      "prevented": 3,
+      "prevented_with_guard_escalation_only": 1,
+      "prevented_with_policy_block": 2,
+      "prevention_rate": 0.375,
+      "safe_scenarios": 6,
+      "safe_scenarios_completed": 5,
+      "safe_scenarios_with_guard_escalation": 1,
+      "unsafe_scenarios": 8
+    }
+  }
+}

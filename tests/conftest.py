@@ -64,3 +64,17 @@ def send(sim: SwarmSimulator, workflow_id: str, email_id: str, version: int, app
 
 def sent_count(sim: SwarmSimulator) -> int:
     return len(sim.sent_emails())
+
+
+@pytest.fixture(autouse=True)
+def _no_network(monkeypatch):
+    """Every test runs without network access (spec item 55): outbound connections raise."""
+    import socket
+
+    def blocked(*args, **kwargs):
+        raise AssertionError("network access attempted during tests")
+
+    monkeypatch.setattr(socket.socket, "connect", blocked)
+    monkeypatch.setattr(socket.socket, "connect_ex", blocked)
+    monkeypatch.setattr(socket, "create_connection", blocked)
+    monkeypatch.setattr(socket, "getaddrinfo", blocked)

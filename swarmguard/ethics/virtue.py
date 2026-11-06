@@ -6,7 +6,7 @@ trustworthiness, fairness, and responsible conduct across the workflow.
 
 from __future__ import annotations
 
-from swarmguard.ethics.base import FrameworkProfile, MockEthicsMonitor, modifications_after_approval
+from swarmguard.ethics.base import LLMEthicsMonitor, FrameworkProfile, MockEthicsMonitor, modifications_after_approval
 from swarmguard.models.actions import ActionRequest
 from swarmguard.models.assessments import EthicalAssessment, EthicalFramework, Recommendation, RiskLevel, WorkflowContext
 
@@ -35,3 +35,12 @@ class MockVirtueEthicsMonitor(MockEthicsMonitor):
             evidence_event_ids=sorted({e.event_id for pair in pairs for e in pair}),
             explanation="The proposed operation differs from prior authorization.",
         )
+
+
+# --------------------------------------------------------------------------- Stage 3: LLM-backed
+
+
+class VirtueEthicsMonitor(LLMEthicsMonitor):
+    """Virtue ethics (honesty, integrity, fairness, trustworthiness, practical wisdom). Prompt: `ethics/prompts.py::SPECS[EthicalFramework.VIRTUE_ETHICS]`."""
+
+    framework = EthicalFramework.VIRTUE_ETHICS

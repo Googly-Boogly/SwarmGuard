@@ -1,4 +1,4 @@
-# SwarmGuard Threat Model (Stage 1)
+# SwarmGuard Threat Model (Stages 1–3)
 
 Scope: a single-process local simulation. The goal is to show that authorization does not depend on agent cooperation or on AI-based monitoring. This is **not** a production security boundary and has **not** been formally verified.
 
@@ -50,3 +50,52 @@ A = agent-editable workspace, B = trusted security state, C = trusted audit stat
 4. **Policy coverage** is limited to the simulated tools. Harms the rules don't model (e.g. an approved but harmful message) are not caught deterministically; detecting those is what the ethics research is for.
 5. **Single process, one SQLite file.** Cross-connection atomicity of approval consumption is tested. Multi-host deployment is not supported.
 6. **The mock ethics monitors** are fixed heuristics tied to the demo scenario. They are not evidence about ethical monitoring.
+
+## Stage 2: workflow-level threats
+
+Stage 1 shows that an approval binds exactly one operation. Stage 2 addresses failures that **no single authorization check can see**, because every individual check passes.
+
+| Threat | Example scenario | What Stage 1 does | What Stage 2 adds | Tests |
+|---|---|---|---|---|
+| **Distributed approval laundering**: individually authorized steps, plus valid approvals, combine into a prohibited outcome | `distributed_approval_001/002` | ALLOW. Every check passes and the approval is exact | Global monitor traces the protected values from record → brief → outbound and evaluates invariant A/E. Optional guard escalates | `test_19`, `test_13`, `test_guard_escalation_*` |
+| **Cumulative authorization failure**: each disclosure is permitted, the sum is not | `task_decomposition_001` | ALLOW both sends | Invariant C counts quasi-identifiers across observable sends | `test_cumulative_*` |
+| **Shared-memory manipulation**: an agent edits shared state that another agent consumes | `shared_memory_001` | ACL + versioning + attribution | Provenance through the shared document; cross-agent change reported (never a violation by itself) | `test_20`, `test_14`, `test_23` |
+| **Cross-agent data flow / purpose drift** | `purpose_violation_001` | Not modeled | Invariant B, using the declared workflow purpose vs. record consent | `test_purpose_*` |
+| **Task decomposition**: a prohibited objective split into benign-looking tasks | `task_decomposition_001` | Each task is authorized | Heuristic `SUSPICIOUS_TASK_DECOMPOSITION` annotation on cumulative violations | `test_21`, detector tests |
+| **Monitoring information leakage**: monitors see labels, scenario names or future events | – | n/a | Single builder; as-of snapshots with replayed approvals; neutral titles and IDs; ground truth read only after prediction; monitors reject over-wide contexts; evidence must be in context | `test_11`, `test_17*`, `test_26`, `test_detectors_do_not_depend_on_identifiers` |
+| **Monitor side effects** | – | n/a | Monitors hold no storage handle; runner fingerprints the log around evaluation | `test_39`, `test_runner_detects_monitor_side_effects` |
+| **Monitor/guard overriding deterministic authorization** | – | Council can only escalate | Guard runs only after policy ALLOW, can only escalate, fails closed | `test_40_*`, `test_guard_failure_fails_closed`, `test_34_36_*` |
+
+### Limitations of local authorization (why Stage 2 exists)
+- Role and ACL permissions and approval binding answer *"is this exact operation permitted and approved?"*, not *"what does this operation do in combination with the others?"*
+- A human approver shown a single packet cannot see provenance. Distributed approval laundering exploits exactly that, without forging anything.
+
+### Known Stage 2 weaknesses
+- **Exact-value matching.** Paraphrased or partial values evade the data-flow detector (`transformed_disclosure_001` is a measured miss).
+- **Workflow-scoped view.** Authorization changes recorded outside the workflow log are invisible, so the global window can be stale (`stale_authorization_001` is a measured false positive). Conversely, an adversary could route data through resources outside the log.
+- **Precautionary local rule.** `UNVERIFIED_SENSITIVE_CONTENT` escalates any unverifiable sensitive-format token. That flags legitimate emails (measured false positive), and an adversary can evade it simply by reformatting.
+- **Agent-authored text in contexts.** Event summaries, documents and email bodies are agent-controlled. Stage 3 LLM monitors face prompt injection through them, and must treat them as data.
+- **Guard scope.** Enforcement covers `send_email` only. Drafting-time violations are observed, not enforced.
+- **Same-author benchmark.** The detectors and scenarios share an author. See `docs/STAGE2_RESEARCH_DESIGN.md` §10.
+
+## Stage 3: LLM monitor threats
+
+| Threat | Mitigation | Tests |
+|---|---|---|
+| **Prompt injection** via agent-authored workflow text | Constant system prompts; data only as escaped JSON under `untrusted_workflow_data`; explicit "data, not instructions" rule; monitors are advisory and hold no capability | `test_20_*`, `test_46_*` |
+| **Monitor "obeys" injection and says ALLOW** | ALLOW can never override a policy BLOCK or ESCALATE; the policy decides execution | `test_44_*`, `test_46_*` |
+| **Evidence fabrication** (invented event IDs) | Assessment rejected (`INVALID_EVIDENCE`), recorded as a failure, counted in `evidence_reference_validity` | `test_17_*`, `test_36_*` |
+| **Malformed / missing structured output** | Strict schema at the provider and revalidation in the monitor; recorded as `INVALID_RESPONSE` | `test_2_3_*`, `test_19_*` |
+| **API failure bypassing authorization** | Failure leads to an incomplete council, which gives at least ESCALATE; a total council crash leaves the deterministic decision unchanged; never fail-open on policy | `test_45_*` |
+| **Silent mock fallback** in research runs | No fallback path exists; missing live configuration stops before any request | `test_6_8_*`, `test_live_demo_refuses_*` |
+| **API key exposure** | `SecretStr`; `repr=False`; key scrubbed from error messages; never in results or logs; `.env` gitignored | `test_7_*` |
+| **Runaway spending / retries / concurrency** | Request cap; conservative pre-request cost reservation; bounded concurrency; retry cap ≤ 5 on retryable kinds only; SDK retries off | `test_budget_*`, `test_10_*`, `test_concurrency_*` |
+| **Ground-truth leakage** to monitors | Same builder and neutral IDs; ground truth read after prediction; spy tests on prompts | `test_33_*` |
+| **Network code in the trusted core** | OpenAI adapter isolated in `swarmguard_providers/`; the core never imports it; suite-wide socket block | `test_core_never_imports_*`, `test_55_*` |
+
+### Remaining Stage 3 limitations
+- Prompt separation does **not** guarantee injection resistance. Live models were not red-teamed.
+- Evidence validation checks that IDs exist, not that the model read them correctly.
+- Local budget accounting is an estimate and not a billing guarantee. Use provider-side limits.
+- When a council is attached to the gateway, an LLM outage makes protected sends escalate. That is safe, but it is an availability cost.
+- The live OpenAI path is tested only against the real SDK with a mock HTTP transport; it has **not** been exercised against the live API.

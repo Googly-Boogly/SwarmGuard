@@ -12,8 +12,12 @@ from datetime import datetime
 from typing import Any
 
 from swarmguard.models.actions import ActionRequest
+import sqlite3
+
 from swarmguard.models.approvals import ApprovalRecord, ApprovalStatus
+from swarmguard.models.assessments import CouncilEvaluationRecord, CouncilReport
 from swarmguard.models.decisions import DecisionRecord
+from swarmguard.models.messages import AgentMessage, MessageType
 from swarmguard.models.events import ActorType, EventType, WorkflowEvent
 from swarmguard.models.workflows import (
     ResourceACL,
@@ -351,6 +355,132 @@ class SentEmailRepository:
         return [dict(r) for r in self._db.fetchall(sql, (workflow_id,) if workflow_id else ())]
 
 
+class EthicsEvaluationRepository:
+    def __init__(self, db: Database) -> None:
+        self._db = db
+
+    def insert(self, r: CouncilEvaluationRecord) -> None:
+        self._db.execute(
+            "INSERT INTO ethics_evaluations(evaluation_id, workflow_id, action_id, council_type, experiment_id, "
+            "snapshot_digest, report_json, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            (r.evaluation_id, r.workflow_id, r.action_id, r.council_type, r.experiment_id, r.snapshot_digest,
+             r.report.model_dump_json(), r.created_at.isoformat()),
+        )
+
+    def for_workflow(self, workflow_id: str) -> list[CouncilEvaluationRecord]:
+        try:
+            rows = self._db.fetchall(
+                "SELECT * FROM ethics_evaluations WHERE workflow_id = ? ORDER BY evaluation_id", (workflow_id,))
+        except sqlite3.OperationalError:  # database created before Stage 3 (no table): nothing recorded
+            return []
+        return [CouncilEvaluationRecord(
+            evaluation_id=x["evaluation_id"], workflow_id=x["workflow_id"], action_id=x["action_id"],
+            council_type=x["council_type"], experiment_id=x["experiment_id"], snapshot_digest=x["snapshot_digest"],
+            report=CouncilReport.model_validate_json(x["report_json"]),
+            created_at=datetime.fromisoformat(x["created_at"])) for x in rows]
+
+
+def _safe_rows(db: Database, sql: str, params: tuple = ()) -> list[Any]:
+    try:
+        return db.fetchall(sql, params)
+    except sqlite3.OperationalError:  # database created before the table existed
+        return []
+
+
+class MessageRepository:
+    def __init__(self, db: Database) -> None:
+        self._db = db
+
+    def insert(self, m: AgentMessage) -> None:
+        self._db.execute(
+            "INSERT INTO agent_messages(message_id, workflow_id, sender_id, recipient_id, message_type, text, "
+            "parent_message_id, action_id, event_id, is_system, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (m.message_id, m.workflow_id, m.sender_id, m.recipient_id, m.message_type.value, m.text,
+             m.parent_message_id, m.action_id, m.event_id, int(m.is_system), m.created_at.isoformat()),
+        )
+
+    @staticmethod
+    def _from_row(r: Any) -> AgentMessage:
+        return AgentMessage(message_id=r["message_id"], workflow_id=r["workflow_id"], sender_id=r["sender_id"],
+                            recipient_id=r["recipient_id"], message_type=MessageType(r["message_type"]), text=r["text"],
+                            parent_message_id=r["parent_message_id"], action_id=r["action_id"], event_id=r["event_id"],
+                            is_system=bool(r["is_system"]), created_at=datetime.fromisoformat(r["created_at"]))
+
+    def get(self, message_id: str) -> AgentMessage | None:
+        rows = _safe_rows(self._db, "SELECT * FROM agent_messages WHERE message_id = ?", (message_id,))
+        return self._from_row(rows[0]) if rows else None
+
+    def for_workflow(self, workflow_id: str) -> list[AgentMessage]:
+        return [self._from_row(r) for r in _safe_rows(
+            self._db, "SELECT * FROM agent_messages WHERE workflow_id = ? ORDER BY created_at, message_id",
+            (workflow_id,))]
+
+    def inbox(self, workflow_id: str, recipient_id: str) -> list[AgentMessage]:
+        return [self._from_row(r) for r in _safe_rows(
+            self._db, "SELECT * FROM agent_messages WHERE workflow_id = ? AND recipient_id = ? "
+            "ORDER BY created_at, message_id", (workflow_id, recipient_id))]
+
+
+class JsonRecordRepository:
+    """Append-only JSON records keyed by workflow (decisions, interventions, assessments, memory)."""
+
+    _INSERT = {
+        "agent_decisions": "INSERT INTO agent_decisions(decision_record_id, workflow_id, agent_id, step, record_json, "
+                           "created_at) VALUES (?, ?, ?, ?, ?, ?)",
+        "interventions": "INSERT INTO interventions(intervention_id, workflow_id, record_json, created_at) "
+                         "VALUES (?, ?, ?, ?)",
+        "autonomous_assessments": "INSERT INTO autonomous_assessments(assessment_id, workflow_id, action_id, monitor, "
+                                  "record_json) VALUES (?, ?, ?, ?, ?)",
+        "agent_memory": "INSERT INTO agent_memory(entry_id, workflow_id, agent_id, kind, content_json, created_at) "
+                        "VALUES (?, ?, ?, ?, ?, ?)",
+    }
+    _SELECT = {
+        "agent_decisions": "SELECT record_json FROM agent_decisions WHERE workflow_id = ? ORDER BY step, decision_record_id",
+        "interventions": "SELECT record_json FROM interventions WHERE workflow_id = ? ORDER BY created_at, intervention_id",
+        "autonomous_assessments": "SELECT record_json FROM autonomous_assessments WHERE workflow_id = ? "
+                                  "ORDER BY assessment_id",
+        "agent_memory": "SELECT content_json AS record_json FROM agent_memory WHERE workflow_id = ? ORDER BY entry_id",
+    }
+
+    def __init__(self, db: Database, table: str) -> None:
+        if table not in self._INSERT:
+            raise ValueError(table)
+        self._db, self._table = db, table
+
+    def insert(self, *values: Any) -> None:
+        self._db.execute(self._INSERT[self._table], values)
+
+    def for_workflow(self, workflow_id: str) -> list[dict[str, Any]]:
+        return [json.loads(r["record_json"]) for r in _safe_rows(self._db, self._SELECT[self._table], (workflow_id,))]
+
+    def memory_for(self, workflow_id: str, agent_id: str) -> list[dict[str, Any]]:
+        assert self._table == "agent_memory"
+        return [json.loads(r["content_json"]) for r in _safe_rows(
+            self._db, "SELECT content_json FROM agent_memory WHERE workflow_id = ? AND agent_id = ? ORDER BY entry_id",
+            (workflow_id, agent_id))]
+
+
+class AgentRegistryRepository:
+    def __init__(self, db: Database) -> None:
+        self._db = db
+
+    def upsert(self, agent_id: str, role: str, display_name: str, is_adversarial: bool) -> None:
+        self._db.execute(
+            "INSERT INTO agent_registry(agent_id, role, display_name, is_adversarial) VALUES (?, ?, ?, ?) "
+            "ON CONFLICT(agent_id) DO UPDATE SET role = excluded.role, display_name = excluded.display_name, "
+            "is_adversarial = excluded.is_adversarial", (agent_id, role, display_name, int(is_adversarial)))
+
+    def list(self) -> list[dict[str, Any]]:
+        return [{"agent_id": r["agent_id"], "role": r["role"], "display_name": r["display_name"],
+                 "is_adversarial": bool(r["is_adversarial"])}
+                for r in _safe_rows(self._db, "SELECT * FROM agent_registry ORDER BY agent_id")]
+
+    def decisions_by_agent(self, agent_id: str) -> list[dict[str, Any]]:
+        return [json.loads(r["record_json"]) for r in _safe_rows(
+            self._db, "SELECT record_json FROM agent_decisions WHERE agent_id = ? ORDER BY workflow_id, step",
+            (agent_id,))]
+
+
 class Repositories:
     """Bundle of repositories over one database."""
 
@@ -363,3 +493,10 @@ class Repositories:
         self.events = EventRepository(db)
         self.approvals = ApprovalRepository(db)
         self.sent_emails = SentEmailRepository(db)
+        self.ethics = EthicsEvaluationRepository(db)
+        self.messages = MessageRepository(db)
+        self.agent_decisions = JsonRecordRepository(db, "agent_decisions")
+        self.interventions = JsonRecordRepository(db, "interventions")
+        self.autonomous_assessments = JsonRecordRepository(db, "autonomous_assessments")
+        self.agent_memory = JsonRecordRepository(db, "agent_memory")
+        self.agent_registry = AgentRegistryRepository(db)

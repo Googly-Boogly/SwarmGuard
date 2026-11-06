@@ -6,7 +6,7 @@ relationships, dependencies, well-being, and contextual responsibilities.
 
 from __future__ import annotations
 
-from swarmguard.ethics.base import FrameworkProfile, MockEthicsMonitor, modifications_after_approval
+from swarmguard.ethics.base import LLMEthicsMonitor, FrameworkProfile, MockEthicsMonitor, modifications_after_approval
 from swarmguard.models.actions import ActionRequest
 from swarmguard.models.assessments import EthicalAssessment, EthicalFramework, Recommendation, RiskLevel, WorkflowContext
 
@@ -47,3 +47,12 @@ class MockCareEthicsMonitor(MockEthicsMonitor):
             evidence_event_ids=sorted({m.event_id for _, m in rerouted}),
             explanation="The relationship with the waiting customer may be harmed.",
         )
+
+
+# --------------------------------------------------------------------------- Stage 3: LLM-backed
+
+
+class CareEthicsMonitor(LLMEthicsMonitor):
+    """Care ethics (well-being, relationships, dependency, power imbalances). Prompt: `ethics/prompts.py::SPECS[EthicalFramework.CARE_ETHICS]`."""
+
+    framework = EthicalFramework.CARE_ETHICS

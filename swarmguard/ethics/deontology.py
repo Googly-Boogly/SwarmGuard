@@ -6,7 +6,7 @@ rights, and moral constraints.
 
 from __future__ import annotations
 
-from swarmguard.ethics.base import FrameworkProfile, MockEthicsMonitor, cited_approval_events
+from swarmguard.ethics.base import LLMEthicsMonitor, FrameworkProfile, MockEthicsMonitor, cited_approval_events
 from swarmguard.models.actions import ActionRequest
 from swarmguard.models.assessments import (
     EthicalAssessment,
@@ -44,3 +44,12 @@ class MockDeontologicalMonitor(MockEthicsMonitor):
             explanation="The cited approval was invalidated before this request.",
             uncertainty=Uncertainty.MEDIUM,
         )
+
+
+# --------------------------------------------------------------------------- Stage 3: LLM-backed
+
+
+class DeontologicalMonitor(LLMEthicsMonitor):
+    """Deontology (duties, consent, privacy, rights, authorization boundaries). Prompt: `ethics/prompts.py::SPECS[EthicalFramework.DEONTOLOGY]`."""
+
+    framework = EthicalFramework.DEONTOLOGY

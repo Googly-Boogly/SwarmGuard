@@ -37,6 +37,7 @@ from swarmguard.models.actions import (
     PrepareEmailParams,
     RequestApprovalParams,
     SendEmailParams,
+    SendMessageParams,
     UpdateSharedDocumentParams,
 )
 from swarmguard.models.approvals import canonical_json
@@ -212,7 +213,8 @@ def assign_task(ctx: ToolContext, params: AssignTaskParams) -> dict[str, Any]:
         task, created = ctx.workspace.create(
             ResourceType.TASK,
             {"assignee": params.assignee, "assigned_by": ctx.request.agent_id, "description": params.description,
-             "depends_on_task_ids": list(params.depends_on_task_ids), "status": "ASSIGNED"},
+             "depends_on_task_ids": list(params.depends_on_task_ids), "status": "ASSIGNED",
+             **({"required_tools": list(params.required_tools)} if params.required_tools else {})},
             agent_id=ctx.request.agent_id, event_workflow_id=ctx.request.workflow_id,
             resource_workflow_id=ctx.request.workflow_id, acl=ResourceACL(read=["*"], write=[params.assignee]),
             action_id=ctx.request.action_id, tool=ctx.request.tool,
@@ -244,6 +246,28 @@ def complete_task(ctx: ToolContext, params: CompleteTaskParams) -> dict[str, Any
     return {"status": "TASK_COMPLETED", "resource_id": task.resource_id, "version": task.version}
 
 
+def send_message(ctx: ToolContext, params: SendMessageParams) -> dict[str, Any]:
+    """Stage 4: persist an inter-agent message. The sender is the authenticated identity; the text is untrusted."""
+    ctx.verify(params, SendMessageParams)
+    from swarmguard.models.messages import AgentMessage, MessageType
+
+    with ctx.db.transaction():
+        message_id = ctx.db.next_id("message")
+        event = ctx.monitor.record_event(
+            EventType.MESSAGE_SENT, ctx.request.workflow_id, agent_id=ctx.request.agent_id,
+            action_id=ctx.request.action_id, tool=ctx.request.tool,
+            summary=f"{ctx.request.agent_id} sent {params.message_type} {message_id} to {params.recipient}.",
+            details={"message_id": message_id, "recipient": params.recipient, "message_type": params.message_type,
+                     "parent_message_id": params.parent_message_id, "text": params.text},
+        )
+        ctx.repos.messages.insert(AgentMessage(
+            message_id=message_id, workflow_id=ctx.request.workflow_id, sender_id=ctx.request.agent_id,
+            recipient_id=params.recipient, message_type=MessageType(params.message_type), text=params.text,
+            parent_message_id=params.parent_message_id, action_id=ctx.request.action_id, event_id=event.event_id,
+            is_system=False, created_at=ctx.clock.now()))
+    return {"status": "MESSAGE_SENT", "message_id": message_id, "recipient": params.recipient}
+
+
 def _read(ctx: ToolContext) -> dict[str, Any]:
     resource, _ = ctx.workspace.read(
         str(ctx.request.resource_id), agent_id=ctx.request.agent_id, event_workflow_id=ctx.request.workflow_id,
@@ -266,6 +290,7 @@ _TOOL_FUNCTIONS: dict[str, Callable[[ToolContext, Any], dict[str, Any]]] = {
     "request_approval": request_approval,
     "assign_task": assign_task,
     "complete_task": complete_task,
+    "send_message": send_message,
 }
 REGISTERED_TOOL_NAMES = frozenset(_TOOL_FUNCTIONS)
 

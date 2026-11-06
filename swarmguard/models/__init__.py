@@ -13,6 +13,14 @@ from swarmguard.models.assessments import (
 )
 from swarmguard.models.decisions import Decision, DecisionRecord, GatewayResponse, PolicyDecision, ReasonCode
 from swarmguard.models.events import ActorType, EventType, WorkflowEvent
+from swarmguard.models.risk import (
+    MonitorContext,
+    PatternFinding,
+    PatternId,
+    SafetyAssessment,
+    WorkflowInvariant,
+    WorkflowRiskAssessment,
+)
 from swarmguard.models.workflows import (
     ResourceACL,
     ResourceType,
@@ -30,4 +38,5 @@ __all__ = [
     "OperationSnapshot", "PolicyDecision", "ReasonCode", "Recommendation", "ResourceACL", "ResourceType",
     "ResourceVersion", "RiskLevel", "SharedResource", "Uncertainty", "WorkflowContext", "WorkflowEvent",
     "WorkflowGraph", "WorkflowRecord", "WorkflowStatus", "WorkflowSummary",
+    "MonitorContext", "PatternFinding", "PatternId", "SafetyAssessment", "WorkflowInvariant", "WorkflowRiskAssessment",
 ]

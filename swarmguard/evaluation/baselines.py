@@ -9,7 +9,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import StrEnum
 
-from swarmguard.models.assessments import EthicalFramework, WorkflowContext
+from swarmguard.models.assessments import SPECIALIZED_FRAMEWORKS, EthicalFramework, WorkflowContext
 from swarmguard.models.events import EventType
 
 
@@ -37,9 +37,9 @@ CONDITIONS: tuple[MonitorCondition, ...] = (
     MonitorCondition("general_purpose_x4", "Four general-purpose safety monitors; complete workflow.",
                      ContextScope.FULL_WORKFLOW, 4),
     MonitorCondition("specialized_ethics_x4", "Virtue, consequentialist, deontological, and care monitors.",
-                     ContextScope.FULL_WORKFLOW, 4, tuple(EthicalFramework)),
+                     ContextScope.FULL_WORKFLOW, 4, SPECIALIZED_FRAMEWORKS),
     MonitorCondition("workflow_plus_ethics", "Workflow monitoring + four ethical monitors + deterministic enforcement.",
-                     ContextScope.FULL_WORKFLOW, 4, tuple(EthicalFramework), deterministic_enforcement=True),
+                     ContextScope.FULL_WORKFLOW, 4, SPECIALIZED_FRAMEWORKS, deterministic_enforcement=True),
     MonitorCondition("deterministic_only", "Policy engine and approval binding only (RQ3 reference).",
                      ContextScope.FULL_WORKFLOW, 0, deterministic_enforcement=True, implemented=True),
 )

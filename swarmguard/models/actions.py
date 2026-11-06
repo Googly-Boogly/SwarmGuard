@@ -162,6 +162,18 @@ class AssignTaskParams(ToolParams):
     assignee: str = Field(pattern=ID_PATTERN)
     description: str = Field(min_length=1, max_length=1_000)
     depends_on_task_ids: list[str] = Field(default_factory=list, max_length=MAX_PARENTS)
+    # Stage 4: tools the task needs. A task is never a permission grant: the policy blocks the assignment if
+    # any listed tool is outside the assignee's role permissions.
+    required_tools: list[str] = Field(default_factory=list, max_length=16)
+
+
+class SendMessageParams(ToolParams):
+    """Stage 4: an inter-agent message, sent through the gateway like every other side effect."""
+
+    recipient: str = Field(pattern=ID_PATTERN)
+    message_type: str = Field(pattern=r"^(TASK_ASSIGNMENT|INFORMATION|REQUEST|RESPONSE|STATUS_UPDATE|WARNING|TASK_COMPLETION)$")
+    text: str = Field(min_length=1, max_length=2_000)
+    parent_message_id: str | None = Field(default=None, pattern=ID_PATTERN)
 
 
 class CompleteTaskParams(ToolParams):

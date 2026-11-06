@@ -6,7 +6,7 @@ harms, downstream consequences, and stakeholder outcomes.
 
 from __future__ import annotations
 
-from swarmguard.ethics.base import FrameworkProfile, MockEthicsMonitor, cited_approval_events
+from swarmguard.ethics.base import LLMEthicsMonitor, FrameworkProfile, MockEthicsMonitor, cited_approval_events
 from swarmguard.models.actions import ActionRequest
 from swarmguard.models.assessments import (
     EthicalAssessment,
@@ -46,3 +46,12 @@ class MockConsequentialistMonitor(MockEthicsMonitor):
             explanation="The message would reach someone other than the approved recipient.",
             uncertainty=Uncertainty.MEDIUM,
         )
+
+
+# --------------------------------------------------------------------------- Stage 3: LLM-backed
+
+
+class ConsequentialistMonitor(LLMEthicsMonitor):
+    """Consequentialism (benefits, harms, downstream and cumulative effects, reversibility). Prompt: `ethics/prompts.py::SPECS[EthicalFramework.CONSEQUENTIALISM]`."""
+
+    framework = EthicalFramework.CONSEQUENTIALISM

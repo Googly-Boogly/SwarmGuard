@@ -9,14 +9,21 @@ from __future__ import annotations
 
 from datetime import datetime
 from enum import StrEnum
-from typing import Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
 from swarmguard.models.actions import ActionRequest
 from swarmguard.models.approvals import ApprovalRecord
 from swarmguard.models.events import WorkflowEvent
+from swarmguard.models.levels import Recommendation, RiskLevel, Uncertainty
 from swarmguard.models.workflows import ResourceVersion, SharedResource
+
+if TYPE_CHECKING:  # pragma: no cover
+    from swarmguard.models.risk import MonitorContext, WorkflowRiskAssessment
+
+__all__ = ["CouncilReport", "EthicalAssessment", "EthicalFramework", "FrameworkPosition", "MonitorFailure",
+           "Recommendation", "RiskLevel", "SPECIALIZED_FRAMEWORKS", "Uncertainty", "WorkflowContext"]
 
 
 class EthicalFramework(StrEnum):
@@ -24,25 +31,13 @@ class EthicalFramework(StrEnum):
     CONSEQUENTIALISM = "consequentialism"
     DEONTOLOGY = "deontology"
     CARE_ETHICS = "care_ethics"
+    GENERAL_PURPOSE = "general_purpose"  # Stage 3 baseline (not an ethical framework)
 
 
-class RiskLevel(StrEnum):
-    LOW = "LOW"
-    MEDIUM = "MEDIUM"
-    HIGH = "HIGH"
-    CRITICAL = "CRITICAL"
-
-
-class Uncertainty(StrEnum):
-    LOW = "LOW"
-    MEDIUM = "MEDIUM"
-    HIGH = "HIGH"
-
-
-class Recommendation(StrEnum):
-    ALLOW = "ALLOW"
-    BLOCK = "BLOCK"
-    ESCALATE = "ESCALATE"
+SPECIALIZED_FRAMEWORKS: tuple[EthicalFramework, ...] = (
+    EthicalFramework.VIRTUE_ETHICS, EthicalFramework.CONSEQUENTIALISM,
+    EthicalFramework.DEONTOLOGY, EthicalFramework.CARE_ETHICS,
+)
 
 
 class EthicalAssessment(BaseModel):
@@ -64,6 +59,15 @@ class EthicalAssessment(BaseModel):
     is_mock: bool = Field(
         default=False, description="True for Stage 1 deterministic placeholders (not LLM output)."
     )
+    # Stage 3 provenance (optional, additive)
+    workflow_id: str | None = Field(default=None, max_length=64)
+    provider: str | None = Field(default=None, max_length=32)
+    model: str | None = Field(default=None, max_length=128)
+    prompt_version: str | None = Field(default=None, max_length=32)
+    prompt_hash: str | None = Field(default=None, max_length=64)
+    legitimate_interpretations: list[str] = Field(default_factory=list, max_length=10)
+    insufficient_evidence: bool = False
+    call: dict[str, Any] | None = Field(default=None, description="ProviderResult metadata (usage, latency, ids).")
 
 
 class MonitorFailure(BaseModel):
@@ -73,6 +77,11 @@ class MonitorFailure(BaseModel):
     monitor_id: str
     error_type: str
     message: str
+    # Stage 3 (optional): structured failure detail
+    error_kind: str | None = None
+    invalid_evidence_ids: list[str] = Field(default_factory=list)
+    call: dict[str, Any] | None = None
+    elapsed_ms: float | None = None
 
 
 class FrameworkPosition(BaseModel):
@@ -101,6 +110,14 @@ class CouncilReport(BaseModel):
     summary: str
     contains_mock_assessments: bool = False
     created_at: datetime
+    # Stage 3 (optional, additive)
+    council_type: str = "SPECIALIZED_ETHICS"
+    workflow_id: str | None = None
+    aggregation_method: str = "UNANIMITY"
+    failed_monitors: list[str] = Field(default_factory=list)
+    expected_monitors: list[str] = Field(default_factory=list)
+    disagreement: dict[str, Any] | None = None
+    monitor_elapsed_ms: dict[str, float] = Field(default_factory=dict)
 
 
 class WorkflowContext(BaseModel):
@@ -121,3 +138,24 @@ class WorkflowContext(BaseModel):
     resource_versions: list[ResourceVersion] = Field(default_factory=list)
     approvals: list[ApprovalRecord] = Field(default_factory=list)
     scope: Literal["FULL_WORKFLOW", "ACTION_ONLY"] = "FULL_WORKFLOW"
+    # Stage 2 (optional, additive): structured workflow analysis for future LLM ethics monitors.
+    # Populated by ``WorkflowIntelligenceEngine.enrich_ethics_context``; None on Stage 1 paths.
+    workflow_analysis: WorkflowRiskAssessment | None = None
+    # Stage 3 (optional, additive): the Stage 2 as-of observation (GLOBAL window). When present, LLM
+    # monitors serialize THIS as their evidence; it contains no events after the checkpoint.
+    observation: MonitorContext | None = None
+
+
+class CouncilEvaluationRecord(BaseModel):
+    """A persisted advisory council result (Stage 3). Never an authorization decision."""
+
+    model_config = ConfigDict(frozen=True)
+
+    evaluation_id: str
+    workflow_id: str
+    action_id: str
+    council_type: str
+    experiment_id: str | None = None
+    snapshot_digest: str | None = None
+    report: CouncilReport
+    created_at: datetime

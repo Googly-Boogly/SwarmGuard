@@ -106,10 +106,11 @@ async def _prepare_approved_email(sim: SwarmSimulator, workflow_id: str, title: 
     return email_id, approval_id, request.action_id, research_update.action_id
 
 
-async def run_approval_laundering(sim: SwarmSimulator, workflow_id: str = "workflow_001") -> ScenarioOutcome:
+async def run_approval_laundering(sim: SwarmSimulator, workflow_id: str = "workflow_001", *,
+                                  title: str = "Customer service update (approval laundering)") -> ScenarioOutcome:
     steps: list[GatewayResponse] = []
     email_id, approval_id, request_action, research_update = await _prepare_approved_email(
-        sim, workflow_id, "Customer service update (approval laundering)", steps)
+        sim, workflow_id, title, steps)
     brief = brief_document_id(workflow_id)
 
     # Step 5: Research publishes a changed contact; Operations applies it to the approved draft.
@@ -131,10 +132,11 @@ async def run_approval_laundering(sim: SwarmSimulator, workflow_id: str = "workf
     return ScenarioOutcome("approval_laundering", workflow_id, send, approval_id, email_id, steps)
 
 
-async def run_authorized_email(sim: SwarmSimulator, workflow_id: str = "workflow_002") -> ScenarioOutcome:
+async def run_authorized_email(sim: SwarmSimulator, workflow_id: str = "workflow_002", *,
+                               title: str = "Customer service update (authorized)") -> ScenarioOutcome:
     steps: list[GatewayResponse] = []
     email_id, approval_id, request_action, _ = await _prepare_approved_email(
-        sim, workflow_id, "Customer service update (authorized)", steps)
+        sim, workflow_id, title, steps)
     draft, send = await sim.operations.send_current_draft(workflow_id, email_id, approval_id=approval_id,
                                                           parent_action_ids=[request_action])
     steps += [draft, send]

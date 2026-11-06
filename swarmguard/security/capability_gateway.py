@@ -26,7 +26,7 @@ import re
 import secrets
 from collections.abc import Mapping
 from datetime import datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from pydantic import ValidationError
 
@@ -47,6 +47,11 @@ from swarmguard.security.workflow_monitor import GATEWAY_ACTOR, WorkflowMonitor
 from swarmguard.storage.database import Database
 from swarmguard.storage.repositories import Repositories
 from swarmguard.tools.mock_tools import MockToolExecutor, PermitError, PreconditionFailed
+
+if TYPE_CHECKING:  # pragma: no cover
+    from swarmguard.models.risk import SafetyAssessment
+    from swarmguard.monitoring.workflow_context import ObservationBuilder
+    from swarmguard.security.workflow_intelligence import WorkflowGuard
 
 logger = logging.getLogger("swarmguard.gateway")
 
@@ -89,6 +94,14 @@ class _StateReader:
     def now(self) -> datetime:
         return self._g._clock.now()
 
+    def role_of(self, agent_id: str):  # noqa: ANN201 - AgentRole | None
+        identity = self._g._identities.get(agent_id)
+        return identity.role if identity else None
+
+    def get_message_workflow(self, message_id: str) -> str | None:
+        message = self._g._repos.messages.get(message_id)
+        return message.workflow_id if message else None
+
 
 class AgentGatewayClient:
     """The only capability an agent receives: submit proposals as itself."""
@@ -120,6 +133,8 @@ class CapabilityGateway:
         council: EthicsCouncil | None = None,
         council_tools: frozenset[str] = frozenset({"send_email"}),
         decision_engine: DecisionEngine | None = None,
+        workflow_guard: WorkflowGuard | None = None,
+        context_builder: ObservationBuilder | None = None,
     ) -> None:
         self._db = db
         self._repos: Repositories = monitor.repos
@@ -132,6 +147,8 @@ class CapabilityGateway:
         self._council = council
         self._council_tools = council_tools
         self._decisions = decision_engine or DecisionEngine()
+        self._guard = workflow_guard  # Stage 2 enforcement mode (None = observation mode / Stage 1)
+        self._context_builder = context_builder  # Stage 3: as-of observation for the (advisory) council
         self._reader = _StateReader(self)
         # The permit key never leaves this object; agents cannot mint permits.
         self._executor = MockToolExecutor(
@@ -208,9 +225,16 @@ class CapabilityGateway:
         if self._council is not None and request.tool in self._council_tools:
             council_report = await self._run_council(request, evaluation)
 
-        combined = self._decisions.combine(evaluation.decision, council_report)
+        workflow_risk: SafetyAssessment | None = None
+        if (self._guard is not None and request.tool in self._guard.tools
+                and evaluation.decision.decision is Decision.ALLOW):
+            # Trusted enforcement mode. An exception here propagates and fails closed (BLOCK INTERNAL_ERROR).
+            workflow_risk = await self._guard.assess(request)
+            self._record_workflow_risk(request, workflow_risk)
+
+        combined = self._decisions.combine(evaluation.decision, council_report, workflow_risk)
         if evaluation.decision.decision is not Decision.ALLOW or combined.decision is not Decision.ALLOW:
-            return self._finalize(request, evaluation.decision, council_report)
+            return self._finalize(request, evaluation.decision, council_report, workflow_risk)
 
         if evaluation.decision.reason_code is not ReasonCode.AUTHORIZED or evaluation.params is None:
             raise RuntimeError("inconsistent ALLOW decision")
@@ -223,7 +247,7 @@ class CapabilityGateway:
                 raise RuntimeError("approval-gated tool allowed without an operation hash")
             expected["operation_hash"] = evaluation.expected_operation_hash
 
-        record = self._record_decision(request, evaluation.decision, council_report)
+        record = self._record_decision(request, evaluation.decision, council_report, workflow_risk)
         permit = self._executor.issue_permit(request.action_id, request.tool, expected)
         try:
             result = self._executor.execute(request, evaluation.params, permit)
@@ -272,6 +296,10 @@ class CapabilityGateway:
             context = self._monitor.build_workflow_context(
                 request, resource=evaluation.resource, approvals=self._approvals.list_for_workflow(request.workflow_id)
             )
+            if self._context_builder is not None:
+                snapshot = self._context_builder.snapshot_for_action(request.action_id)
+                context = context.model_copy(update={"observation": self._context_builder.global_(
+                    snapshot, request.action_id)})
             report = await self._council.deliberate(request, context)
         except Exception:  # noqa: BLE001 - advisory; a crash must not alter the deterministic result
             logger.exception("ethics council failed for %s", request.action_id)
@@ -294,13 +322,28 @@ class CapabilityGateway:
             )
         return report
 
+    def _record_workflow_risk(self, request: ActionRequest, a: SafetyAssessment) -> None:
+        self._monitor.record_event(
+            EventType.WORKFLOW_RISK_ASSESSMENT, request.workflow_id, agent_id=f"swarmguard.guard.{a.monitor_id}",
+            actor_type=ActorType.MONITOR, action_id=request.action_id, tool=request.tool,
+            resource_id=request.resource_id, decision=a.recommendation.value, related_event_ids=a.evidence_event_ids,
+            summary=f"[workflow guard {a.monitor_id}] {a.recommendation.value} (risk {a.risk_level.value}, "
+            f"uncertainty {a.uncertainty.value}); patterns: {', '.join(p.value for p in a.detected_patterns) or 'none'}.",
+            details={"assessment": a.model_dump(mode="json", exclude={"findings", "data_flows"})},
+        )
+
     def _record_decision(self, request: ActionRequest, policy: PolicyDecision,
-                         council: CouncilReport | None) -> DecisionRecord:
-        combined = self._decisions.combine(policy, council)
+                         council: CouncilReport | None, workflow_risk: SafetyAssessment | None = None) -> DecisionRecord:
+        combined = self._decisions.combine(policy, council, workflow_risk)
+        details = dict(policy.details)
+        if workflow_risk is not None:
+            details["workflow_guard"] = {"monitor_id": workflow_risk.monitor_id,
+                                         "recommendation": workflow_risk.recommendation.value,
+                                         "patterns": [p.value for p in workflow_risk.detected_patterns]}
         record = DecisionRecord(
             decision_id=self._db.next_id("decision"), action_id=request.action_id, workflow_id=request.workflow_id,
             agent_id=request.agent_id, tool=request.tool, decision=combined.decision,
-            reason_code=combined.reason_code, explanation=combined.explanation, details=policy.details,
+            reason_code=combined.reason_code, explanation=combined.explanation, details=details,
             policy_decision=policy.decision, policy_reason_code=policy.reason_code,
             checks_passed=policy.checks_passed, advisory_recommendation=combined.advisory_recommendation,
             advisory_summary=combined.advisory_summary, policy_version=policy.policy_version,
@@ -309,8 +352,9 @@ class CapabilityGateway:
         self._monitor.record_decision(record)
         return record
 
-    def _finalize(self, request: ActionRequest, policy: PolicyDecision, council: CouncilReport | None) -> GatewayResponse:
-        record = self._record_decision(request, policy, council)
+    def _finalize(self, request: ActionRequest, policy: PolicyDecision, council: CouncilReport | None,
+                  workflow_risk: SafetyAssessment | None = None) -> GatewayResponse:
+        record = self._record_decision(request, policy, council, workflow_risk)
         spec = self._policy.tool_spec(request.tool)
         if record.decision is Decision.BLOCK and spec is not None and spec.protected:
             self._monitor.record_event(

@@ -29,6 +29,7 @@ from swarmguard.models.actions import (
     PrepareEmailParams,
     RequestApprovalParams,
     SendEmailParams,
+    SendMessageParams,
     UpdateSharedDocumentParams,
 )
 from swarmguard.models.approvals import ApprovalRecord, ApprovalStatus
@@ -77,7 +78,7 @@ def _tools(*specs: ToolSpec) -> Mapping[str, ToolSpec]:
 
 R = ResourceType
 DEFAULT_POLICY = SecurityPolicy(
-    version="stage1-v2",
+    version="stage4-v1",
     tools=_tools(
         ToolSpec("read_document", NoParams, Access.READ, R.DOCUMENT),
         ToolSpec("update_shared_document", UpdateSharedDocumentParams, Access.WRITE, R.DOCUMENT, requires_version=True),
@@ -91,19 +92,21 @@ DEFAULT_POLICY = SecurityPolicy(
                  description="Ask the trusted human operator to review an exact resource version."),
         ToolSpec("assign_task", AssignTaskParams, Access.CREATE),
         ToolSpec("complete_task", CompleteTaskParams, Access.WRITE, R.TASK, requires_version=True),
+        ToolSpec("send_message", SendMessageParams, Access.CREATE,
+                 description="Stage 4: inter-agent message to a workflow participant (content is untrusted data)."),
     ),
     # "Limited" cells of the permission matrix = tool allowed by role, then restricted per resource ACL.
     role_permissions=MappingProxyType({
         AgentRole.COORDINATOR: frozenset({
             "read_document", "update_shared_document", "read_customer_record", "read_email_draft",
-            "assign_task", "complete_task",
+            "assign_task", "complete_task", "send_message",
         }),
         AgentRole.RESEARCH: frozenset({
-            "read_document", "update_shared_document", "read_customer_record", "complete_task",
+            "read_document", "update_shared_document", "read_customer_record", "complete_task", "send_message",
         }),
         AgentRole.OPERATIONS: frozenset({
             "read_document", "update_shared_document", "read_customer_record", "read_email_draft",
-            "prepare_email", "modify_email", "request_approval", "send_email", "complete_task",
+            "prepare_email", "modify_email", "request_approval", "send_email", "complete_task", "send_message",
         }),
     }),
     approval_required_operations=frozenset({"send_email"}),
@@ -122,6 +125,8 @@ class TrustedStateReader(Protocol):
     def verify_approval_integrity(self, record: ApprovalRecord) -> bool: ...
     def compute_operation_hash(self, **kwargs: Any) -> str: ...
     def now(self) -> datetime: ...
+    def role_of(self, agent_id: str) -> AgentRole | None: ...
+    def get_message_workflow(self, message_id: str) -> str | None: ...
 
 
 @dataclass(frozen=True)
@@ -279,10 +284,30 @@ class PolicyEngine:
 
     def _tool_rules(self, spec: ToolSpec, params: BaseModel, request: ActionRequest, agent: str,
                     workflow: WorkflowRecord, resource: SharedResource | None, state: TrustedStateReader) -> None:
+        if isinstance(params, SendMessageParams):
+            if params.recipient == agent or params.recipient not in workflow.participants:
+                raise _Deny(B, ReasonCode.INVALID_RECIPIENT_AGENT,
+                            f"'{params.recipient}' is not another participant of {request.workflow_id}.")
+            if params.parent_message_id is not None and \
+                    state.get_message_workflow(params.parent_message_id) != request.workflow_id:
+                raise _Deny(B, ReasonCode.WORKFLOW_MISMATCH,
+                            f"Parent message '{params.parent_message_id}' is not a message of this workflow.")
+            return
         recipient = getattr(params, "recipient", None)
         if recipient is not None and not is_reserved_email_domain(recipient):
             raise _Deny(B, ReasonCode.RECIPIENT_NOT_ALLOWED, "Recipients must use reserved example domains.")
+        scope = workflow.metadata.get("recipient_scope")
+        if recipient is not None and isinstance(scope, list) and recipient not in scope:
+            raise _Deny(B, ReasonCode.RECIPIENT_OUT_OF_WORKFLOW_SCOPE,
+                        "Recipient is outside this workflow's trusted recipient scope.")
         if isinstance(params, AssignTaskParams):
+            assignee_role = state.role_of(params.assignee)
+            allowed = self._policy.permissions_for(assignee_role) if assignee_role else frozenset()
+            excess = sorted(t for t in params.required_tools if t not in self._policy.tools or t not in allowed)
+            if excess:
+                raise _Deny(B, ReasonCode.DELEGATION_EXCEEDS_PERMISSIONS,
+                            f"A task cannot grant capabilities: {', '.join(excess)} not permitted for "
+                            f"'{params.assignee}'.")
             if params.assignee not in workflow.participants:
                 raise _Deny(B, ReasonCode.INVALID_ASSIGNEE, f"'{params.assignee}' is not a workflow participant.")
             for task_id in params.depends_on_task_ids:
