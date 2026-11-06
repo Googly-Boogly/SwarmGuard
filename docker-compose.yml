@@ -1,0 +1,50 @@
+# SwarmGuard Stage 1 — local development stack.
+#
+#   docker compose up --build            # run demo once, then serve the read-only API
+#   docker compose run --rm demo && docker compose restart api   # re-run demo (recreates the DB)
+#   docker compose --profile test run --rm tests
+#
+# API: http://127.0.0.1:8000/docs  (published on localhost only)
+
+x-hardening: &hardening
+  read_only: true            # immutable container filesystem
+  tmpfs:
+    - /tmp
+  cap_drop:
+    - ALL
+  security_opt:
+    - no-new-privileges:true
+
+services:
+  demo:
+    <<: *hardening
+    build: .
+    image: swarmguard:stage1
+    command: ["python", "demo.py"]
+    network_mode: none       # proves the simulation needs no network
+    volumes:
+      - swarmguard-data:/data
+
+  api:
+    <<: *hardening
+    build: .
+    image: swarmguard:stage1
+    depends_on:
+      demo:
+        condition: service_completed_successfully
+    ports:
+      - "127.0.0.1:8000:8000"
+    volumes:
+      - swarmguard-data:/data:ro   # API can only read the audit log
+    restart: unless-stopped
+
+  tests:
+    <<: *hardening
+    build: .
+    image: swarmguard:stage1
+    profiles: ["test"]
+    command: ["python", "-m", "pytest", "-p", "no:cacheprovider"]
+    network_mode: none
+
+volumes:
+  swarmguard-data:
