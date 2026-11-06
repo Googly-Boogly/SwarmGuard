@@ -1,0 +1,6 @@
+cff-version: 1.2.0
+message: "Please cite the repository and exact revision used in your experiment."
+title: "SwarmGuard: Evaluating Multi-Framework Ethical Oversight for Autonomous Multi-Agent Systems"
+type: software
+repository-code: "https://github.com/Googly-Boogly/SwarmGuard"
+url: "https://github.com/Googly-Boogly/SwarmGuard"

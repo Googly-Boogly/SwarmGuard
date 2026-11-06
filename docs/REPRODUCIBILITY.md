@@ -73,3 +73,7 @@ Playwright starts an isolated temporary database and test-only operator, not the
 operator. Sandboxed execution may need permission to start local browser/server processes;
 backend FastAPI tests also stalled under the restricted sandbox during implementation and were
 successfully run with the offline network-blocking test fixture outside it.
+
+## Final laboratory
+
+See RESEARCHER_GUIDE.md for exact versioned dataset imports, manifests, recorded replay and bundle verification. Export paths are exclusive. Historical results remain unchanged.

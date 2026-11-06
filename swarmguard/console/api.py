@@ -101,6 +101,9 @@ def create_console_app(db_path: str | Path = "swarmguard_console.db", *,
         manager = JobManager(writer, clock, step_delay=step_delay, code_revision=code_revision)
         from swarmguard.console.research import ResearchJobs
         app.state.research = ResearchJobs(writer, clock, manager.worker, code_revision)
+        from swarmguard.console.laboratory import LaboratoryJobs
+        from swarmguard.research.laboratory import Laboratory
+        app.state.laboratory = LaboratoryJobs(Laboratory(writer, clock=clock, revision=code_revision), manager.worker)
         from swarmguard.console.platform import PlatformJobs
         app.state.platform = PlatformJobs(writer, clock, manager.worker, code_revision)
         reader = Database(path, read_only=True)
@@ -112,6 +115,7 @@ def create_console_app(db_path: str | Path = "swarmguard_console.db", *,
             try:
                 yield
             finally:
+                await app.state.laboratory.close()
                 await app.state.platform.close()
                 await app.state.research.close()
                 await manager.close()
@@ -125,6 +129,8 @@ def create_console_app(db_path: str | Path = "swarmguard_console.db", *,
                                                          *[h for h in __import__("os").environ.get("SWARMGUARD_ALLOWED_HOSTS", "").split(",") if h]])
     from swarmguard.console.research import register_research_routes
     register_research_routes(app, auth)
+    from swarmguard.console.laboratory import register_laboratory_routes
+    register_laboratory_routes(app, auth)
     from swarmguard.console.platform import register_platform_routes
     register_platform_routes(app, auth)
     from swarmguard.console.security_routes import register_security_routes

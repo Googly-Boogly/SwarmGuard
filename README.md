@@ -403,3 +403,16 @@ This is a hardened research deployment, **not** a production-secure system. Read
 [security architecture](docs/STAGE7_SECURITY_ARCHITECTURE.md), [deployment](docs/DEPLOYMENT.md),
 [security operations](docs/SECURITY_OPERATIONS.md), [incident response](docs/INCIDENT_RESPONSE.md) and the
 [production-readiness assessment](docs/PRODUCTION_READINESS.md).
+
+## Final research laboratory
+
+```bash
+python -m pip install -e ".[test]"
+python demo_final.py
+python run_research.py --provider mock
+python verify_final_release.py
+```
+
+The final verification command returns exit 2 when release evidence is incomplete. The native laboratory adds immutable dataset versions, bounded experiments, mock autonomous policies, recorded replay, statistical accounting, reports and checksummed bundles. Console routes start at `/research/laboratory`. Start the backend with `python -m uvicorn console_main:app --host 127.0.0.1 --port 8000` and frontend with `cd frontend && npm ci && npm run dev`; provision an operator first using setup_console_operator.py.
+
+See [final architecture](docs/FINAL_ARCHITECTURE.md), [research guide](docs/RESEARCHER_GUIDE.md), [limitations](docs/LIMITATIONS.md), and [release report](docs/FINAL_RELEASE_REPORT.md). No license has been selected; public open-source release remains blocked pending the owner decision.

@@ -95,3 +95,7 @@ npm run test:e2e
 Playwright starts isolated FastAPI/Vite servers, a temporary database, and a test-only operator. Stop normal development servers on ports 8000/5173 first. The real local operator and database are not used. Demos support `--db /tmp/name.db` to avoid replacing your demonstration databases.
 
 To verify the optimized production assets after building, run `SWARMGUARD_PREVIEW=1 npm run test:e2e` in `frontend/`. It runs the same isolated browser checks through `npm run preview`; the backend and proxy are still required.
+
+## Final laboratory
+
+Open `/research/laboratory`, authenticate with a RESEARCHER account, select question and validated dataset, and run a bounded synthetic experiment. Choose swarmguard_autonomous for MOCK_AUTONOMOUS. Inspect recorded statistics and trajectories, generate a draft report, and download the checksummed bundle. Unsupported configurations return backend validation errors.

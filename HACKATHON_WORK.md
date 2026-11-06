@@ -349,3 +349,7 @@ were modified.
 Not production-ready (see PRODUCTION_READINESS.md): approval integrity relies on a symmetric key shared by trusted
 services; no mTLS internally; no MFA; no connection pooling; single worker per service; and the GitHub workflow has
 not been executed on GitHub.
+
+## Stage 8 — final laboratory work
+
+Added a native laboratory with strict configurations, RQ registry, immutable datasets, bounded scripted/mock autonomous execution, replay, metrics validation, reports and checksummed bundles; connected it to the existing console and React routes. Baseline 551/12 backend, 39 frontend and 8 browser tests; final 560/12 backend and 9 browser tests, with focused research tests rerun after the recipient/oracle alignment fix. No ruleset or prompt tuning, paid API runs, invented metrics or historical result edits. See docs/FINAL_RELEASE_REPORT.md for actual outcomes and incomplete scope. Missing license remains an owner decision and release blocker.

@@ -18,6 +18,7 @@ from swarmguard.monitoring.coordination_patterns import coordination_patterns
 from swarmguard.monitoring.information_flow import information_flow
 from swarmguard.monitoring.evidence_validator import validate_evidence
 from swarmguard.llm.usage import GuardedProvider
+from swarmguard.evaluation.scenarios.base import Scenario
 
 
 def _fingerprint(sim: SwarmSimulator, wid: str) -> str:
@@ -25,12 +26,13 @@ def _fingerprint(sim: SwarmSimulator, wid: str) -> str:
 
 
 async def evaluate_candidate(definition: ScenarioDefinition, config: ResearchConfig,
-                             provider: GuardedProvider, workflow_id: str) -> dict[str, Any]:
+                             provider: GuardedProvider, workflow_id: str, *,
+                             scenario: Scenario | None = None) -> dict[str, Any]:
     from swarmguard.adversarial.constraints import validate_candidate
     errors = validate_candidate(definition, config)
     if errors:
         raise ValueError("; ".join(errors))
-    scenario = ParameterizedScenario(definition)
+    scenario = scenario or ParameterizedScenario(definition)
     sim = SwarmSimulator(clock=SteppingClock(), agent_count=definition.agent_count,
                          max_workflow_proposals=definition.max_steps)
     started = time.perf_counter()
