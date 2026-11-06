@@ -99,3 +99,48 @@ Stage 1 shows that an approval binds exactly one operation. Stage 2 addresses fa
 - Local budget accounting is an estimate and not a billing guarantee. Use provider-side limits.
 - When a council is attached to the gateway, an LLM outage makes protected sends escalate. That is safe, but it is an availability cost.
 - The live OpenAI path is tested only against the real SDK with a mock HTTP transport; it has **not** been exercised against the live API.
+
+
+## Stage 4.5: untrusted browser boundary
+
+Scope remains loopback, one operator, one backend worker, synthetic data. The console is not approved for public internet exposure. Read-only viewers can inspect synthetic workflow data; anyone able to reach loopback endpoints can read those records. Authentication protects mutations and WebSocket delivery, not every GET. Filesystem owners can alter SQLite and the local password file; audit records are not tamper-proof.
+
+| Threat | Mitigation |
+|---|---|
+| Browser impersonates agent or human | Fixed server-derived operator identity, sealed existing registry, password-verified server session; no input identity/credential fields |
+| Cross-site operator action / CSRF | SameSite=Strict cookie, exact local Origin check, JSON-only bodies, per-session CSRF header; no permissive credentialed CORS |
+| Session theft/fixation | HttpOnly, Secure default, rotation at login, one-hour server expiry, server-side logout, restart revocation; no session token in JSON or URLs |
+| Password disclosure / guessing | Local hidden-input provisioning, salted scrypt hash with 0600 file mode, no default password, failed-login rate limit |
+| Approval parameter/version substitution | Exact packet review and explicit confirmation; transactional current resource/status/version/content/deadline/digest checks; existing bound/signed, expiring, single-use approval path |
+| Agent self-approval | Agent credentials/bearer claims cannot authenticate the operator API; agents have no browser/network/control handle |
+| Browser bypasses gateway | No raw tool, SQL, shell, identity creation, or policy editing endpoints; jobs route all agent proposals through existing credential-bound gateway |
+| Runaway tasks or paid requests | Allowlisted bounded modes/configurations, one worker, bounded queue, step/runtime/request caps, cancellation, no auto-resume; browser live mode rejected even when confirmed |
+| Lost/replayed live events | Persisted IDs and sequence cursors, reconnect plus polling, client deduplication; database is source of truth |
+| WebSocket abuse | Session and Origin validation, workflow existence checks, eight-connection cap, documented 16 KiB Uvicorn limit; no client command protocol |
+| Agent-generated XSS/instructions | React text/JSON rendering, no unsafe HTML, no generated-code execution; messages never alter permissions |
+| Misleading safety/research presentation | Distinct mock/scripted/live labels, actual checks only, explicit execution state, preserved disagreements/failures, null denominators, no significance or LLM-performance claims |
+
+Residual limitations: one-process cooperative scheduling, no TLS listener/proxy configuration supplied, no account recovery or multi-user RBAC, no cross-process job lock, no persistent approver-credential recovery, no per-agent pause/resume, and no browser live autonomous runner. A submitted action may finish before cooperative pause takes effect. On localhost Chromium accepts Secure cookies; an explicit local HTTP compatibility override exists and must not be used for public deployment. Read endpoints and JSON export assume synthetic local research data and are not a production confidentiality boundary.
+
+Regression coverage lives in `tests/test_console.py`, the existing offline security suite, frontend unit tests, and real Playwright workflows. See [FRONTEND_ARCHITECTURE.md](FRONTEND_ARCHITECTURE.md).
+
+## Stage 5 extension
+
+Adaptive proposals are strict data constrained by a fixed synthetic template allowlist. Trusted
+validation precedes environment creation and is repeated at the evaluator entry. Generated
+content cannot configure policies, identities, approvals, destinations, tool definitions or code.
+The only paid path is the explicitly authorized, priced CLI provider injection; browser live mode
+is still refused. Gateway controls remain mandatory under every benchmark configuration.
+
+Additional identities are sealed before execution and retain ordinary role permissions and ACLs.
+Trusted proposal limits fail closed with persisted decisions. Monitors remain capability-free,
+consume as-of observations and cannot relax deterministic decisions. Robustness changes only
+experimental copies, with exact change records. Ground truth joins predictions afterward, and
+adaptive search is restricted to its own partition. Public inherited held-out fixtures cannot
+support independent blind-test claims.
+
+Authenticated research endpoints reuse operator sessions, exact local Origin, JSON and CSRF.
+Detailed label-bearing research reads require a researcher session; no simulated agent gets HTTP
+or database access. Research jobs share one worker, have a bounded queue and never resume after
+restart. Accepted controls, rejected POSTs, CAS progress and candidate records are audited. See
+ADVERSARIAL_THREAT_MODEL.md for capabilities, assumptions and limitations.

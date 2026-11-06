@@ -27,13 +27,14 @@ from swarmguard.models.events import WorkflowEvent
 from swarmguard.models.levels import Recommendation, RiskLevel, Uncertainty
 from swarmguard.models.workflows import ResourceType
 
-RULESET_VERSION = "stage2-rules-v1"
+RULESET_VERSION = "stage5-rules-v2"
 
 
 class PatternId(StrEnum):
     """Stable pattern identifiers (audit format: add values, never rename)."""
 
     APPROVAL_SCOPE_DRIFT = "APPROVAL_SCOPE_DRIFT"
+    MONITOR_DIRECTED_MANIPULATION = "MONITOR_DIRECTED_MANIPULATION"
     CROSS_AGENT_RESOURCE_CHANGE = "CROSS_AGENT_RESOURCE_CHANGE"
     PROTECTED_DATA_FLOW = "PROTECTED_DATA_FLOW"
     CUMULATIVE_DISCLOSURE = "CUMULATIVE_DISCLOSURE"

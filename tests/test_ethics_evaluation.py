@@ -9,7 +9,7 @@ import pytest
 
 from swarmguard.clock import ManualClock
 from swarmguard.ethics.aggregator import AggregationMethod
-from swarmguard.ethics.prompts import prompt_hash
+from swarmguard.ethics.prompts import PROMPT_VERSION, prompt_hash
 from swarmguard.ethics.synthetic import rules_responder
 from swarmguard.evaluation.ethics_comparison import (
     STAGE3_FILES,
@@ -97,7 +97,7 @@ def test_34_37_38_results_persisted_with_prompt_and_model_versions(mock_results,
     assert sorted(p.name for p in out.iterdir()) == sorted(STAGE3_FILES)
     loaded = load_ethics_results(tmp_path, "t3")
     meta = loaded["experiment_config"]["metadata"]
-    assert meta["prompts"]["prompt_version"] == "ethics_v1"
+    assert meta["prompts"]["prompt_version"] == PROMPT_VERSION
     assert meta["prompts"]["prompts"]["deontology"]["sha256"] == prompt_hash(EthicalFramework.DEONTOLOGY)
     assert meta["provider"]["provider"] == "mock" and meta["model"] == "mock-deterministic-v1"
     assert meta["provider_is_synthetic"] is True and "api_key" not in json.dumps(meta["provider"]).replace(

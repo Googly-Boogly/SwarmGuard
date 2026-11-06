@@ -8,5 +8,5 @@ safety monitors, a synthetic scenario library and a reproducible paired evaluati
 Core invariant: agents propose actions; trusted Python code authorizes execution.
 """
 
-__version__ = "0.4.0"
-STAGE = "stage-3-ethics-council"
+__version__ = "0.5.0"
+STAGE = "stage-5-adaptive-research"

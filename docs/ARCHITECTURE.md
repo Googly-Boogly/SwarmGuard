@@ -1,4 +1,4 @@
-# SwarmGuard Architecture (Stages 1–3)
+# SwarmGuard Architecture (Stages 1–5)
 
 > **Core invariant:** LLMs propose actions. Trusted Python code authorizes execution.
 > In Stage 1 the "LLMs" are deterministic scripted agents.
@@ -230,3 +230,45 @@ Full design: `docs/STAGE3_ETHICS_RESEARCH.md`.
 - **Council.** `EthicsCouncil` runs monitors concurrently (optional semaphore) with a per-monitor timeout, records every failure as a `MonitorFailure` (kind, invalid evidence IDs, call metadata, elapsed time), preserves every assessment unmerged, and aggregates with a configurable `Aggregator`. The Stage 1 default is `UNANIMITY`. `CouncilReport` gains additive fields (council type, aggregation method, failed/expected monitors, disagreement report, per-monitor timings).
 - **Authorization.** Unchanged. A council report reaches the decision engine only through `DecisionEngine.combine`, where advice can only turn ALLOW into ESCALATE. A policy BLOCK or ESCALATE is final. An incomplete council recommends at least ESCALATE. Monitors hold no capability.
 - **Persistence.** The `ethics_evaluations` table (Boundary C) is written only by `WorkflowMonitor.record_council_evaluation`, and writes no workflow event, so recorded advice never enters later observations. Experiment files go to `results/stage3/<id>/`. Read-only API: `/workflows/{id}/ethics`, `/ethics/assessments`, `/ethics/disagreement`, `/evaluations/ethics[/{id}]`. No endpoint triggers an LLM call.
+
+
+## 13. Stage 4.5: local research console
+
+The React/TypeScript frontend (`frontend/`) adds operational and research views over existing persisted services. `console_main:app` is a separate application; `main:app` remains unchanged, GET-only and read-only. The console mounts that original app at `/observe`, uses its own read-only SQLite handle for queries, and delegates authenticated writes to `swarmguard/console/jobs.py` and the existing ApprovalManager/simulator.
+
+The browser is untrusted. A locally provisioned scrypt password hash authenticates the fixed simulated human identity. Random server-held sessions use HttpOnly/Secure/SameSite=Strict cookies; mutation requests require JSON, a known local Origin, and CSRF. No browser input becomes a credential or policy. Approval review checks current version/content, pending-request expiry, workflow/runtime ownership, and exact reviewed digest in a transaction. The existing gateway still exclusively executes protected agent operations.
+
+The bounded single-worker job manager reuses AutonomousAgent, AgentRuntime, TaskManager, mock policies, ObservationBuilder, existing councils, and credential-bound gateway clients. Trusted control records use CAS versioned `console_jobs` plus immutable `console_job_versions` snapshots. Restart marks unfinished work INTERRUPTED and halts workflows, without recovering credentials or resuming jobs. Stopping waits for cleanup. Browser live runs are refused; CLI live configuration is unchanged.
+
+WebSocket events retain persisted IDs/global ordering; a read-only cursor endpoint handles recovery and unauthenticated polling. React Flow preserves explicit causal references and distinguishes chronological edges. Charts use measured predictions/outcomes, explicit sample counts, and null metrics for undefined denominators; all console results remain synthetic infrastructure validation. Existing `results/` files are not rewritten.
+
+Full frontend routes, APIs, authentication, job lifecycle, and limitations: [FRONTEND_ARCHITECTURE.md](FRONTEND_ARCHITECTURE.md). Operations: [USER_GUIDE.md](USER_GUIDE.md).
+
+## Stage 5: adaptive research over the existing simulator
+
+`models/adversarial.py` defines strict immutable researcher/candidate commands.
+`adversarial/` supplies the fixed partitioned catalog, validator, deterministic mutations,
+structural novelty and bounded feedback-driven controller. The controller is trusted research
+orchestration; untrusted candidate generation receives no simulator/service handles. Optional
+live generation uses the injected bounded provider and a constant system prompt, then the same
+validator. All workflow effects use the original gateway and mock tools.
+
+`evaluation/adaptive_runner.py` adapts existing Scenario classes rather than creating a second
+runtime. Each candidate has a fresh simulator and sealed identities. `SwarmSimulator(agent_count=...)`
+registers additional ordinary research participants before sealing. A new optional trusted gateway
+proposal cap returns audited EXECUTION_LIMIT_EXCEEDED without weakening any ordinary policy check.
+`monitoring/` adds context-only coordination, synthetic flow labels, temporal queries and evidence
+validation. RiskAnalyzer applies the manipulation signal identically in local/global windows.
+
+`ResearchRepository` adds CAS run progress, immutable version snapshots, append-only candidates
+and audit rows. Trajectories include exact observations, assessments, authoritative events,
+explicit-reference graphs, oracle outcomes, failures and intervention replays. Experimental
+observation transforms never rewrite source records. `statistical_analysis.py` preserves paired
+samples, undefined metrics, correlated failures, operational costs and per-framework outcomes.
+
+`console/research.py` adds authenticated research reads and start/cancel commands to the separate
+console app. Its bounded queue shares the existing single worker semaphore. Restarts mark active
+runs INTERRUPTED. Browser live execution remains disabled. The original observability app remains
+GET-only and mode=ro; research query handlers also use its separate read-only connection.
+The four `/research/*` React pages extend the same frontend and component system. CLI exports and
+console records use separate databases. See STAGE5_RESEARCH_DESIGN.md and REPRODUCIBILITY.md.

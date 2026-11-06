@@ -128,8 +128,14 @@ def explain(findings: list[PatternFinding], rec: Recommendation, missing: list[s
 
 class RiskAnalyzer:
     def assess(self, ctx: MonitorContext, *, monitor_id: str) -> SafetyAssessment:
+        from swarmguard.monitoring.coordination_patterns import coordination_patterns
         detection = detect_all(ctx)
         findings = [*detection.findings, *evaluate_invariants(ctx, detection)]
+        for signal in coordination_patterns(ctx):
+            if signal["pattern"] == "MONITOR_DIRECTED_MANIPULATION":
+                findings.append(_finding(ctx, PatternId.MONITOR_DIRECTED_MANIPULATION, RiskLevel.HIGH,
+                    EvidenceBasis.HEURISTIC, signal["explanation"], evidence=signal["evidence_event_ids"],
+                    actionable=True, is_violation=False))
         available = ctx.event_ids()
         cited = {e for f in findings for e in f.evidence_event_ids} | {
             h.event_id for fl in detection.flows for h in fl.hops if h.event_id}

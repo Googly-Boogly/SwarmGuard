@@ -1,0 +1,33 @@
+import { useState, type ReactNode } from 'react'
+import { Link } from 'react-router-dom'
+import { AlertTriangle, CheckCircle2, Circle, Clock, ShieldAlert, XCircle, Search, ArrowUpRight } from 'lucide-react'
+import { Button } from './ui/button'
+import { Dialog } from './ui/dialog'
+import { date, short } from '../lib/utils'
+import { useApi, type Decision, type Event, type Workflow, type WorkflowRecords } from '../lib/api/client'
+export function Badge({ value }: { value?: string | null }) {
+ const status = value ?? 'UNKNOWN'; const positive = ['ALLOW', 'COMPLETED', 'APPROVED', 'CONNECTED'].includes(status)
+ const danger = ['BLOCK', 'FAILED', 'REJECTED', 'CRITICAL'].includes(status)
+ const warn = ['ESCALATE', 'WAITING_APPROVAL', 'PAUSED', 'PENDING', 'HIGH'].includes(status)
+ const Icon = positive ? CheckCircle2 : danger ? XCircle : warn ? ShieldAlert : Circle
+ return <span className={`badge ${positive ? 'positive' : danger ? 'danger' : warn ? 'warning' : 'neutral'}`}><Icon size={12}/>{status.replaceAll('_', ' ')}</span>
+}
+export function Mode({ value = 'MOCK_AUTONOMOUS' }: { value?: string }) { return <span className="mode-label">{value.includes('LIVE') ? 'LIVE LLM MODE' : value === 'SCRIPTED' ? 'SCRIPTED' : value === 'RECORDED' ? 'RECORDED · MODE UNKNOWN' : 'MOCK MODE'}</span> }
+export function PageTitle({ eyebrow, title, description, children }: { eyebrow: string; title: string; description: string; children?: ReactNode }) { return <div className="page-heading"><div><p className="eyebrow">{eyebrow}</p><h1>{title}</h1><p className="muted">{description}</p></div><div className="actions">{children}</div></div> }
+export function Panel({ title, subtitle, children, action, className = '' }: { title: string; subtitle?: string; children: ReactNode; action?: ReactNode; className?: string }) { return <section className={`panel ${className}`}><div className="panel-heading"><div><h2>{title}</h2>{subtitle && <p className="muted small-text">{subtitle}</p>}</div>{action}</div>{children}</section> }
+export function Empty({ title = 'No records yet', detail = 'Start a synthetic workflow to populate this view.' }: { title?: string; detail?: string }) { return <div className="empty"><Circle size={24}/><h3>{title}</h3><p>{detail}</p></div> }
+export function ErrorBox({ error }: { error: unknown }) { return <div role="alert" className="error"><AlertTriangle size={18}/><div><strong>Unable to complete request</strong><p>{error instanceof Error ? error.message : 'Backend unavailable. Check that the local server is running.'}</p></div></div> }
+export function Loading() { return <p role="status" className="loading"><Clock size={16}/> Loading backend records…</p> }
+export function JsonView({ value }: { value: unknown }) { return <pre className="json">{JSON.stringify(value, null, 2)}</pre> }
+export function Inspect({ title, value, children }: { title: string; value: unknown; children?: ReactNode }) { const [open, setOpen] = useState(false); return <><Button variant="ghost" size="sm" onClick={() => setOpen(true)}>{title}<ArrowUpRight size={14}/></Button><Dialog open={open} onOpenChange={setOpen} title={title}>{children}<JsonView value={value}/></Dialog></> }
+export function SearchInput({ value, onChange, label = 'Search records' }: { value: string; onChange: (value: string) => void; label?: string }) { return <label className="search"><Search size={16}/><input aria-label={label} placeholder={label} value={value} onChange={e => onChange(e.target.value)}/></label> }
+export function DecisionsTable({ rows }: { rows: Decision[] }) { return rows.length ? <div className="table-wrap"><table><thead><tr>{['Time', 'Workflow / agent', 'Tool', 'Decision', 'Reason', 'Execution', ''].map(x => <th key={x}>{x}</th>)}</tr></thead><tbody>{rows.map(d => <tr key={d.decision_id}><td className="mono">{date(d.decided_at)}</td><td><Link to={`/workflows/${d.workflow_id}`}>{d.workflow_id}</Link><small>{d.agent_id}</small></td><td className="mono">{d.tool}</td><td><Badge value={d.decision}/></td><td className="mono">{d.reason_code}</td><td>{d.executed ? 'Executed' : 'Not executed'}</td><td><DecisionInspector decision={d}/></td></tr>)}</tbody></table></div> : <Empty title="No gateway decisions"/> }
+export function WorkflowsTable({ rows }: { rows: Workflow[] }) { return rows.length ? <div className="table-wrap"><table><thead><tr>{['Workflow / scenario', 'Mode', 'Agents', 'Status', 'Actions', 'Blocks', 'Findings', 'Started'].map(x => <th key={x}>{x}</th>)}</tr></thead><tbody>{rows.map(w => <tr key={w.workflow_id}><td><Link to={`/workflows/${w.workflow_id}`}>{w.workflow_id} ↗</Link><small>{short(w.scenario ?? w.title)}</small></td><td><Mode value={w.execution_mode}/></td><td>{w.participants.length}</td><td><Badge value={w.execution_status}/></td><td>{w.action_count}</td><td>{w.blocked_count}</td><td>{w.finding_count}</td><td className="mono">{date(w.created_at)}</td></tr>)}</tbody></table></div> : <Empty title="No recorded workflows"/> }
+export function EventList({ events }: { events: Event[] }) { return events.length ? <ol className="event-list">{events.map(e => <li key={e.event_id}><span className={`event-marker ${e.decision === 'BLOCK' ? 'red' : ''}`}/><div><div className="event-meta"><time>{new Date(e.created_at).toLocaleTimeString()}</time><span>{e.event_type}</span><span>#{e.seq}</span></div><p>{e.summary}</p><small>{e.agent_id} {e.decision && <Badge value={e.decision}/>}</small><Inspect title="Event details" value={e}/></div></li>)}</ol> : <Empty title="No persisted events"/> }
+
+function DecisionInspector({ decision: d }: { decision: Decision }) {
+ const [open,setOpen] = useState(false)
+ const records = useApi<WorkflowRecords>(`/api/workflows/${d.workflow_id}/records`,open)
+ const action = records.data?.actions.find(a => a.action_id === d.action_id)
+ return <><Button variant="ghost" size="sm" onClick={() => setOpen(true)}>Decision trace<ArrowUpRight size={14}/></Button><Dialog open={open} onOpenChange={setOpen} title={`Decision trace · ${d.action_id}`}><p>Trusted requesting identity: <strong>{d.agent_id}</strong></p><p>Persisted successful checks: {(d.checks_passed ?? []).join(' → ') || 'None recorded'}</p><p>Policy: <Badge value={d.policy_decision}/> · {d.policy_reason_code}</p><p>{d.explanation}</p><p className="muted">Subsequent checks are unknown or were not reached. A blocked unsafe proposal is not an executed breach.</p>{records.error && <ErrorBox error={records.error}/>}<h3>Persisted original proposal</h3>{action ? <JsonView value={action}/> : <Loading/>}<h3>Gateway decision and execution</h3><JsonView value={d}/><h3>Recorded safety assessments</h3><JsonView value={records.data?.assessments.filter(a => a.action_id === d.action_id) ?? []}/></Dialog></>
+}

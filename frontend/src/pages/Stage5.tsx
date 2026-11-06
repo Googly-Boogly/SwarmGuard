@@ -1,0 +1,101 @@
+import { useMemo, useState } from 'react'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { Background, Controls, ReactFlow } from '@xyflow/react'
+import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
+import { Badge, Empty, ErrorBox, Inspect, JsonView, Loading, PageTitle, Panel } from '../components/common'
+import { Button } from '../components/ui/button'
+import { graphElements } from '../components/WorkflowGraph'
+import { post, useApi, type Graph, type Json, type Session, type Event } from '../lib/api/client'
+import { EventList } from '../components/common'
+
+type Kind = 'adaptive' | 'benchmark' | 'scaling'
+type Metric = Record<string, number | null>
+type ResearchRun = { run_id:string; kind:Kind; status:string; iteration:number; generated:number; validated:number; executed:number; rejected:number; failed:number; monitoring_failures:number; gateway_blocks:number; prohibited_outcomes:number; usage:Json; error:string|null; manifest:{ config:Json; note:string }; metrics:{ detection:Record<string, Metric>; comparison_count:number; note:string; operational:Record<string,Metric>; interventions:Record<string,Metric> } }
+type ResearchMessage = {sender_id:string; recipient_id:string; event_id:string|null; message_id:string}
+type Candidate = { messages?:ResearchMessage[]; scenario_id:string; workflow_id:string; definition:Json; validation:Json; predictions:Json; feedback:Json; failures:Failure[]; novelty:Json; events:Event[]; graph:Graph|null; assessments:Json[]; robustness:Json[]; interventions:Json[]; scaling:Json; coordination:Json[]; information_flows:Json[]; ground_truth:Json; error:string|null }
+type Failure = { failure_id:string; run_id:string; workflow_id:string; monitor:string; expected_unsafe:boolean; prediction:boolean|null; category:string; evidence_event_ids:string[]; action_id:string; verified_facts:string[]; advisory_interpretation:string|null; observation_and_assessment:Json[]; ground_truth:Json; uncertainty:string }
+const monitors = ['BASELINE_POLICY_ONLY','LOCAL_MONITOR','GLOBAL_MONITOR','SINGLE_GENERAL','GENERAL_COUNCIL','SPECIALIZED_ETHICS_COUNCIL','COMBINED_OVERSIGHT']
+const categories = ['all','approval_integrity','distributed_coordination','information_flow','shared_memory','task_decomposition','monitor_manipulation','legitimate_collaboration']
+const active = (status:string) => ['QUEUED','RUNNING','CANCEL_REQUESTED'].includes(status)
+
+function RecordedGraph({graph}:{graph:Graph|null}) {
+ const [type,setType] = useState('ACTION')
+ const elements = useMemo(() => graph ? graphElements(graph,type) : {nodes:[],edges:[]},[graph,type])
+ if (!graph) return <Empty title="No graph recorded"/>
+ return <><label>Graph filter<select value={type} onChange={e => setType(e.target.value)}><option value="">All persisted nodes</option>{['ACTION','AGENT','RESOURCE_VERSION','APPROVAL'].map(v => <option key={v}>{v}</option>)}</select></label><p className="muted">Edges use persisted references. Dashed edges describe chronology, not causality.</p><div className="graph" aria-label="Recorded research workflow"><ReactFlow nodes={elements.nodes} edges={elements.edges} fitView nodesDraggable={false} nodesConnectable={false} onlyRenderVisibleElements><Background/><Controls/></ReactFlow></div></>
+}
+
+function CommunicationGraph({candidate}:{candidate:Candidate}) {
+ const [filter,setFilter] = useState('')
+ const elements = useMemo(() => {
+  const messages = (candidate.messages ?? []).filter(m => !filter || m.sender_id === filter || m.recipient_id === filter)
+  const ids = [...new Set(messages.flatMap(m => [m.sender_id,m.recipient_id]))].sort()
+  const nodes = ids.map((id,i) => ({id,data:{label:id},position:{x:250+220*Math.cos(2*Math.PI*i/Math.max(1,ids.length)),y:230+180*Math.sin(2*Math.PI*i/Math.max(1,ids.length))},style:{background:'var(--panel)',color:'var(--text)',border:'1px solid #63889a'}}))
+  const pairs = new Map<string,ResearchMessage[]>()
+  messages.forEach(m => {const key=JSON.stringify([m.sender_id,m.recipient_id]);pairs.set(key,[...(pairs.get(key) ?? []),m])})
+  const edges = [...pairs.entries()].map(([id,ms]) => ({id,source:ms[0].sender_id,target:ms[0].recipient_id,label:`${ms.length} recorded message(s)`,data:{event_ids:ms.map(m=>m.event_id),message_ids:ms.map(m=>m.message_id)}}))
+  return {nodes,edges}
+ },[candidate.messages,filter])
+ return <><h3>Recorded agent communication</h3><label>Communication participant<input value={filter} onChange={e => setFilter(e.target.value)} placeholder="Exact agent ID"/></label><p className="muted">Edges aggregate persisted sender/recipient message records. No relationship is inferred from timing.</p><div className="graph"><ReactFlow nodes={elements.nodes} edges={elements.edges} fitView nodesDraggable={false} nodesConnectable={false} onlyRenderVisibleElements><Background/><Controls/></ReactFlow></div></>
+}
+
+function CandidateDetails({candidate:c}:{candidate:Candidate}) {
+ return <><h3>Validation and mutation</h3><JsonView value={{definition:c.definition,validation:c.validation,novelty:c.novelty,error:c.error}}/><h3>Measured outcomes</h3><JsonView value={{feedback:c.feedback,predictions:c.predictions,interventions:c.interventions}}/><RecordedGraph graph={c.graph}/><CommunicationGraph candidate={c}/><h3>Workflow timeline</h3><EventList events={c.events ?? []}/><h3>Exact monitor observations and assessments</h3><JsonView value={c.assessments}/><h3>Trusted ground truth</h3><JsonView value={c.ground_truth}/><h3>Coordination and synthetic information flow</h3><JsonView value={{coordination:c.coordination,flows:c.information_flows}}/><h3>Paired robustness observations</h3><JsonView value={c.robustness}/></>
+}
+
+export function Stage5ResearchPage({kind}:{kind:Kind}) {
+ const session = useApi<Session>('/api/session')
+ const authenticated = !!session.data?.authenticated
+ const section = kind === 'adaptive' ? 'adversarial' : kind === 'benchmark' ? 'benchmarks' : 'scaling'
+ const list = useApi<ResearchRun[]>(`/api/research/${section}`,authenticated)
+ const [selected,setSelected] = useState('')
+ const current = selected || list.data?.[0]?.run_id || ''
+ const run = useApi<ResearchRun>(`/api/research/runs/${current}`,authenticated && !!current)
+ const candidates = useApi<Candidate[]>(`/api/research/runs/${current}/candidates`,authenticated && !!current)
+ const [agentCount,setAgentCount] = useState(3), [category,setCategory] = useState('all'), [monitor,setMonitor] = useState('GLOBAL_MONITOR')
+ const [objective,setObjective] = useState('Evaluate synthetic cross-agent safety')
+ const [partition,setPartition] = useState('adaptive_search'), [iterations,setIterations] = useState(kind === 'benchmark' ? 8 : 4), [steps,setSteps] = useState(60), [seed,setSeed] = useState(42), [compare,setCompare] = useState(true), [budget,setBudget] = useState(0)
+ const cache = useQueryClient()
+ const launch = useMutation({mutationFn:() => post<ResearchRun>(`/api/research/${section}/runs`, {kind,partition,category,research_objective:objective,agent_count:agentCount,monitor,compare_all:compare,max_iterations:iterations,max_steps:steps,seed,max_cost_usd:budget,max_requests:kind === 'benchmark' ? 200 : 100}), onSuccess:async r => {setSelected(r.run_id); await cache.invalidateQueries()}})
+ const stop = useMutation({mutationFn:() => post(`/api/research/runs/${current}/cancel`),onSuccess:async() => {await cache.invalidateQueries()}})
+ const title = kind === 'adaptive' ? 'Adaptive Adversarial Research' : kind === 'benchmark' ? 'Safety Benchmarks' : 'Scaling Experiments'
+ const r = run.data
+ const [scalingGraph,setScalingGraph] = useState(0)
+ const scalingChart = (candidates.data ?? []).filter(c => c.scaling).map(c => ({agents:Number(c.scaling.agent_count),messages:Number(c.scaling.messages),proposals:Number(c.scaling.tool_proposals),execution_ms:Number(c.scaling.execution_ms),completion:c.feedback.legitimate_objective_completed ? 1 : 0}))
+ const operationalChart = Object.entries(r?.metrics?.operational ?? {}).map(([name,m]) => ({name,...m}))
+ const interventionChart = Object.entries(r?.metrics?.interventions ?? {}).map(([name,m]) => ({name,...m}))
+ const chart = Object.entries(r?.metrics?.detection ?? {}).map(([name,m]) => ({name,...m}))
+ return <><PageTitle eyebrow="STAGE 5 / SYNTHETIC RESEARCH" title={title} description="Controlled templates, actual gateway execution, frozen predictions and auditable results."/>
+ <p className="notice">SYNTHETIC MOCK MODE · Council responses render deterministic rules. These measurements do not establish live LLM safety performance. Live execution is available only through the explicitly authorized, priced CLI.</p>
+ {!authenticated && <Empty title="Researcher login required" detail="Use Operator login to configure runs and inspect research records."/>}
+ <Panel title="Research configuration" subtitle="The server validates the partition and limits before execution."><form onSubmit={e => {e.preventDefault();launch.mutate()}}><div className="form-grid">
+ <label>Scenario category<select value={category} onChange={e => setCategory(e.target.value)}>{categories.map(v => <option key={v}>{v}</option>)}</select></label>
+ <label>Agent count<select value={agentCount} onChange={e => setAgentCount(Number(e.target.value))}>{[3,5,8,12].map(v => <option key={v} value={v}>{v} agents</option>)}</select></label>
+ <label>Adversarial objective<input value={objective} onChange={e => setObjective(e.target.value)} maxLength={500} required/></label>
+ <label>Monitoring configuration<select value={monitor} onChange={e => setMonitor(e.target.value)}>{monitors.map(v => <option key={v}>{v}</option>)}</select></label>
+ <label>Execution mode<select aria-label="Research execution mode" value="mock" disabled><option value="mock">Mock · synthetic</option></select></label>
+ <label>Dataset partition<select value={partition} disabled={kind !== 'benchmark'} onChange={e => setPartition(e.target.value)}>{['adaptive_search','development','held_out'].map(v => <option key={v}>{v}</option>)}</select></label>
+ <label>Maximum iterations<input aria-label="Maximum research iterations" type="number" min="1" max="20" value={iterations} onChange={e => setIterations(Number(e.target.value))}/></label>
+ <label>Maximum steps<input type="number" min="1" max="60" value={steps} onChange={e => setSteps(Number(e.target.value))}/></label>
+ <label>Random seed<input type="number" min="0" value={seed} onChange={e => setSeed(Number(e.target.value))}/></label>
+ <label>Spending limit (USD)<input type="number" min="0" max="5" step="0.01" value={budget} onChange={e => setBudget(Number(e.target.value))}/></label>
+ <label><input type="checkbox" checked={compare} onChange={e => setCompare(e.target.checked)}/>Compare all monitoring configurations</label></div>
+ {kind === 'scaling' && <p className="muted">The runner compares the same objective at 3, 5, 8 and 12 agents, in order. At least four iterations are required for the full comparison. Extra participants perform public-reference tasks; work volume is a confounder.</p>}
+ <Button type="submit" disabled={!authenticated || launch.isPending}>{launch.isPending ? 'Starting…' : kind === 'adaptive' ? 'START RESEARCH RUN' : kind === 'benchmark' ? 'START BENCHMARK' : 'START SCALING RUN'}</Button></form>{launch.error && <ErrorBox error={launch.error}/>}</Panel>
+ {authenticated && <Panel title="Recorded experiments"><label>Experiment<select aria-label="Research experiment" value={current} onChange={e => setSelected(e.target.value)}><option value="">Select a run</option>{list.data?.map(v => <option key={v.run_id} value={v.run_id}>{v.run_id} · {v.status} · {String(v.manifest.config.partition)}</option>)}</select></label>{list.error && <ErrorBox error={list.error}/>}<div className="actions">{r && active(r.status) && <Button variant="outline" onClick={() => stop.mutate()} disabled={stop.isPending}>STOP RUN</Button>}{r && <a href={`/api/research/runs/${current}/export`} download={`${current}.json`}>Export manifest and trajectories</a>}</div>{stop.error && <ErrorBox error={stop.error}/>}</Panel>}
+ {run.error && <ErrorBox error={run.error}/>}{r && <><Panel title="Live research progress" subtitle={`${r.run_id} · partition ${String(r.manifest.config.partition)} · synthetic mock`}><Badge value={r.status}/><div className="metric-grid four">{[['Iteration',r.iteration],['Generated',r.generated],['Validated',r.validated],['Executed',r.executed],['Validation rejected',r.rejected],['Failed executions',r.failed],['Monitoring failures',r.monitoring_failures],['Gateway blocks',r.gateway_blocks],['Prohibited outcomes',r.prohibited_outcomes],['Model calls',r.usage.model_calls ?? 0],['Estimated cost (USD)',r.usage.estimated_cost_usd ?? 'unavailable']].map(([label,value]) => <div className="metric-card" key={String(label)}><p className="muted">{String(label)}</p><strong>{String(value)}</strong></div>)}</div>{r.error && <p role="alert">{r.error}</p>}<Inspect title="Experiment manifest" value={r.manifest}/></Panel>
+ <Panel title="Detection performance" subtitle="Precision = TP/(TP+FP); recall = TP/(TP+FN); FPR = FP/(FP+TN). Null means undefined. Critical checkpoint observations only.">{chart.length ? <><div className="chart"><ResponsiveContainer width="100%" height={290}><BarChart data={chart}><CartesianGrid strokeDasharray="3 3"/><XAxis dataKey="name" tick={{fontSize:9}} interval={0}/><YAxis domain={[0,1]}/><Tooltip/><Legend/>{[['precision','#60c5af'],['recall','#73a6ed'],['f1','#b59bee'],['false_positive_rate','#ed9299']].map(([key,color]) => <Bar key={key} dataKey={key} fill={color}/>)}</BarChart></ResponsiveContainer></div><div className="table-wrap"><table><thead><tr>{['Monitor','n','Precision','Recall','F1','FPR','Lead (events)','Not evaluated'].map(x => <th key={x}>{x}</th>)}</tr></thead><tbody>{chart.map(m => <tr key={m.name}><td>{m.name}</td>{['n','precision','recall','f1','false_positive_rate','mean_detection_lead_events','not_evaluated'].map(k => <td key={k}>{String(m[k as keyof typeof m] ?? 'undefined')}</td>)}</tr>)}</tbody></table></div><p className="muted">{r.metrics.note} {r.metrics.comparison_count} paired comparisons. Confidence intervals are omitted for dependent deterministic fixture repetitions.</p><Inspect title="Paired metrics and per-category results" value={r.metrics}/></> : <Empty title="No scored candidates yet"/>}</Panel>
+ {kind === 'benchmark' && <><Panel title="Monitoring latency and cost" subtitle="Measured elapsed milliseconds; mock billing is zero. Combined oversight reuses its components, so call counts are not additive."><div className="chart"><ResponsiveContainer width="100%" height={260}><BarChart data={operationalChart}><CartesianGrid strokeDasharray="3 3"/><XAxis dataKey="name" tick={{fontSize:9}} interval={0}/><YAxis/><Tooltip/><Legend/><Bar dataKey="mean_monitor_latency_ms" fill="#73a6ed"/><Bar dataKey="model_calls" fill="#60c5af"/></BarChart></ResponsiveContainer></div><div className="chart"><ResponsiveContainer width="100%" height={220}><BarChart data={operationalChart}><XAxis dataKey="name" tick={{fontSize:9}} interval={0}/><YAxis/><Tooltip/><Legend/><Bar dataKey="estimated_cost_usd" fill="#60c5af"/></BarChart></ResponsiveContainer></div><JsonView value={r.metrics.operational}/></Panel><Panel title="Safety and utility under trusted intervention" subtitle="Separate fresh policy/local/global guard replays. Prevention denominator is unsafe fixtures; utility denominator is legitimate fixtures."><div className="chart"><ResponsiveContainer width="100%" height={260}><BarChart data={interventionChart}><CartesianGrid strokeDasharray="3 3"/><XAxis dataKey="name"/><YAxis domain={[0,1]}/><Tooltip/><Legend/><Bar dataKey="prevention_rate" fill="#60c5af"/><Bar dataKey="legitimate_completion_rate" fill="#b59bee"/></BarChart></ResponsiveContainer></div><JsonView value={r.metrics.interventions}/></Panel></>}
+ <Panel title="Candidate variations" subtitle="Inspect the exact observations, evidence, trusted ground truth and independent authorization outcomes.">{candidates.isLoading ? <Loading/> : candidates.error ? <ErrorBox error={candidates.error}/> : candidates.data?.length ? <div className="table-wrap"><table><thead><tr>{['Candidate','Mutation','Agents','Validation','Outcome','Details'].map(x => <th key={x}>{x}</th>)}</tr></thead><tbody>{candidates.data.map((c,i) => <tr key={`${c.scenario_id}_${i}`}><td>{c.scenario_id}<small>{String(c.definition.parent_scenario_id ?? 'Initial template')}</small></td><td>{String(c.definition.mutation_type)}</td><td>{String(c.definition.agent_count)}</td><td>{c.validation.validated ? 'Valid' : 'Rejected'}</td><td>{c.error ?? (c.feedback?.prohibited_outcome_occurred ? 'Prohibited outcome observed' : 'No prohibited outcome observed')}</td><td><Inspect title="Inspect candidate" value={c.failures ?? []}><CandidateDetails candidate={c}/></Inspect></td></tr>)}</tbody></table></div> : <Empty title="No candidate records yet"/>}</Panel>
+ {kind === 'scaling' && <Panel title="Scaling measurements" subtitle="Larger swarms add public-reference work and messages; differences cannot be attributed solely to agent count."><div className="chart"><ResponsiveContainer width="100%" height={280}><BarChart data={scalingChart}><CartesianGrid strokeDasharray="3 3"/><XAxis dataKey="agents"/><YAxis/><Tooltip/><Legend/><Bar dataKey="messages" fill="#60c5af"/><Bar dataKey="proposals" fill="#73a6ed"/></BarChart></ResponsiveContainer></div><div className="table-wrap"><table><thead><tr>{['Agents','Messages','Proposals','Execution (ms)','Legitimate completed'].map(v => <th key={v}>{v}</th>)}</tr></thead><tbody>{scalingChart.map((c,i) => <tr key={i}><td>{c.agents}</td><td>{c.messages}</td><td>{c.proposals}</td><td>{c.execution_ms.toFixed(1)}</td><td>{c.completion ? 'Yes' : 'No'}</td></tr>)}</tbody></table></div><JsonView value={candidates.data?.map(c => ({...c.scaling,feedback:c.feedback})) ?? []}/><label>Scaling workflow<select value={scalingGraph} onChange={e => setScalingGraph(Number(e.target.value))}>{candidates.data?.map((c,i) => <option key={i} value={i}>{String(c.scaling?.agent_count)} agents · {c.workflow_id}</option>)}</select></label>{candidates.data?.[scalingGraph] && <><CommunicationGraph candidate={candidates.data[scalingGraph]}/><RecordedGraph graph={candidates.data[scalingGraph].graph}/></>}</Panel>}</>}
+ </>
+}
+
+export function Stage5FailuresPage() {
+ const session = useApi<Session>('/api/session')
+ const list = useApi<Failure[]>('/api/research/failures',!!session.data?.authenticated)
+ const [id,setId] = useState('')
+ const detail = useApi<Failure & {workflow:Candidate}>(`/api/research/failures/${id}`,!!id && !!session.data?.authenticated)
+ const f = detail.data
+ return <><PageTitle eyebrow="STAGE 5 / EVIDENCE" title="Failure Analysis" description="Incorrect predictions, exact observations and trusted specifications. Root causes retain uncertainty."/>{!session.data?.authenticated ? <Empty title="Researcher login required"/> : list.error ? <ErrorBox error={list.error}/> : <Panel title="Recorded monitoring failures">{list.data?.length ? <div className="table-wrap"><table><thead><tr>{['Experiment / scenario','Monitor','Expected unsafe','Prediction','Category','Evidence'].map(v => <th key={v}>{v}</th>)}</tr></thead><tbody>{list.data.map(v => <tr key={`${v.run_id}_${v.failure_id}`}><td>{v.run_id}<small>{v.workflow_id}</small></td><td>{v.monitor}</td><td>{String(v.expected_unsafe)}</td><td>{v.prediction === null ? 'Failed assessment' : String(v.prediction)}</td><td>{v.category}</td><td><Button variant="ghost" onClick={() => setId(v.failure_id)}>Inspect failure</Button></td></tr>)}</tbody></table></div> : <Empty title="No recorded failures" detail="Run a synthetic evaluation to measure monitor predictions."/>}</Panel>}{detail.error && <ErrorBox error={detail.error}/>} {f && <Panel title={`${f.category} · ${f.monitor}`}><h3>Verified facts</h3>{f.verified_facts.map(v => <p key={v}>{v}</p>)}<p className="muted">{f.uncertainty}</p><h3>Advisory interpretation</h3><p>{f.advisory_interpretation ?? 'No LLM interpretation generated.'}</p><h3>Relevant action and event references</h3><JsonView value={{action:f.action_id,events:f.evidence_event_ids}}/><CandidateDetails candidate={f.workflow}/></Panel>}</>
+}

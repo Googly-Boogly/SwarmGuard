@@ -144,7 +144,7 @@ def create_app(db_path: str | Path | None = None, results_dir: str | Path | None
         finally:
             db.close()
 
-    app = FastAPI(title="SwarmGuard (Stage 2)", version=__version__, lifespan=lifespan,
+    app = FastAPI(title="SwarmGuard Observability", version=__version__, lifespan=lifespan,
                   description="Read-only observability for the SwarmGuard multi-agent simulation.")
 
     def monitor() -> WorkflowMonitor:

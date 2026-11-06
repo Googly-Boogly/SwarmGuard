@@ -9,7 +9,29 @@ SwarmGuard is an open-source AI-safety research framework for monitoring and con
 
 **Principle: LLMs propose actions. Trusted Python code authorizes execution.**
 
-> **Status (Stage 3).** Agents are deterministic scripts. The Stage 2 local and global monitors are deterministic rule engines. Stage 3 adds **LLM-backed** ethics monitors (virtue, consequentialism, deontology, care) and general-purpose baselines behind an OpenAI provider. **They have only been run in mock mode**; the live OpenAI integration is implemented but **unverified against the real API**. The Stage 1 mock monitors remain, labeled as mocks. One controlled benchmark on 14 synthetic scenarios has been run (see [Stage 2](#stage-2-cross-agent-workflow-intelligence)). It validates the infrastructure; it does **not** answer the research questions for real agents. See [`PRE_HACKATHON_WORK.md`](PRE_HACKATHON_WORK.md) and [`HACKATHON_WORK.md`](HACKATHON_WORK.md) for what was written when.
+> **Status (Stage 5).** Bounded synthetic adaptive research, partitioned benchmarks, robustness comparisons and scaling now run through the existing console and simulator. See [Stage 5](#stage-5--adaptive-synthetic-safety-research) and the [verification record](docs/STAGE5_VERIFICATION.md). Live Stage 5 execution remains unverified. Earlier-stage context: Agents are deterministic scripts. The Stage 2 local and global monitors are deterministic rule engines. Stage 3 adds **LLM-backed** ethics monitors (virtue, consequentialism, deontology, care) and general-purpose baselines behind an OpenAI provider. **They have only been run in mock mode**; the live OpenAI integration is implemented but **unverified against the real API**. The Stage 1 mock monitors remain, labeled as mocks. One controlled benchmark on 14 synthetic scenarios has been run (see [Stage 2](#stage-2-cross-agent-workflow-intelligence)). It validates the infrastructure; it does **not** answer the research questions for real agents. See [`PRE_HACKATHON_WORK.md`](PRE_HACKATHON_WORK.md) and [`HACKATHON_WORK.md`](HACKATHON_WORK.md) for what was written when.
+
+## Stage 4.5 — Research Console
+
+A working local React/TypeScript console now connects the existing services through a separate authenticated control API. It launches bounded mock autonomous workflows and experiments, waits for trusted human approval, streams persisted events, renders actual dependency graphs, exposes gateway decisions and council disagreement, compares trajectories, and charts/export measured synthetic results.
+
+The original `main:app` stays read-only. Start the console separately:
+
+```bash
+source .venv/bin/activate
+python setup_console_operator.py
+python -m uvicorn console_main:app --host 127.0.0.1 --port 8000 --ws-max-size 16384 --limit-concurrency 32
+# Second terminal:
+cd frontend
+npm ci
+npm run dev
+```
+
+Open **http://localhost:5173**. No default operator password or paid provider is needed. The default database is `swarmguard_console.db`, separate from demonstration databases. Run one backend worker. Operator cookies are HttpOnly/Secure/SameSite=Strict; mutations require server-side authentication, CSRF, and a local Origin. Approvals still use exact-operation binding and the original gateway execution path.
+
+The browser runner supports three interactive synthetic scenarios and two Stage 1 scripted replays. Browser live execution is disabled and refused server-side; the original live CLI integration is preserved. Mock outcomes remain labelled synthetic (`is_research_result=False`). Interrupted jobs never resume automatically. This is a loopback research prototype, not a public deployment.
+
+See [User guide](docs/USER_GUIDE.md), [Frontend architecture](docs/FRONTEND_ARCHITECTURE.md), and [verification record](docs/STAGE45_VERIFICATION.md). Existing Stage 1–3 capabilities and their research limitations are documented below.
 
 ## Research objectives
 
@@ -292,3 +314,41 @@ Full list: [`docs/THREAT_MODEL.md`](docs/THREAT_MODEL.md).
   - semantic (not exact-value) data-flow detection;
   - calibration of monitor uncertainty.
 - **Later**: process isolation for agents, a hash-chained audit log, and a real approval UI with graph visualization (the graph JSON is already serializable).
+
+## Stage 5 — adaptive synthetic safety research
+
+Stage 5 adds bounded generate–validate–execute–refine experiments using the existing simulator,
+gateway, as-of observations and councils. It records controlled mutations, structural novelty,
+monitor predictions, actual authorization/execution outcomes, context robustness pairs, failures,
+3/5/8/12-participant scaling, comparative metrics and reproducibility manifests. Four research
+pages extend the existing console: **Adaptive Adversarial Research**, **Safety Benchmarks**,
+**Failure Analysis**, and **Scaling Experiments**. Use the existing local operator login to launch
+mock research, cancel runs, inspect exact evidence/graphs and export records.
+
+```bash
+source .venv/bin/activate
+python demo_stage5.py --provider mock
+python run_adaptive_evaluation.py --provider mock
+python run_benchmark.py --provider mock
+python run_benchmark.py --provider mock --suite held_out
+# Console: provision an operator once, then use the existing entry point.
+python setup_console_operator.py
+python -m uvicorn console_main:app --host 127.0.0.1 --port 8000
+# Separate terminal:
+cd frontend
+npm run dev
+```
+
+CLI results are saved exclusively to `results/stage5/<run_id>/` plus its research SQLite database.
+Browser research uses the console database and authenticated `/api/research/...` controls; CLI
+results are not automatically imported. The original read-only API remains GET-only. All
+configurations retain gateway authorization. Generated candidates cannot grant approvals or
+change policies. Additional participants receive ordinary permissions and synthetic public tasks.
+
+Mock councils render the deterministic rules: agreement does **not** demonstrate LLM safety or
+ethical-specialization benefits. The inherited held-out fixtures are public, operationally
+separated fixtures, not an independently authored blind benchmark. Live Stage 5 mode requires
+`--authorize-live`, configured pricing and a positive `--max-cost`; it has not been run or verified.
+Browser live execution remains disabled. See [research design](docs/STAGE5_RESEARCH_DESIGN.md),
+[benchmark methodology](docs/BENCHMARK_METHODOLOGY.md), [adversarial threat model](docs/ADVERSARIAL_THREAT_MODEL.md),
+[reproducibility](docs/REPRODUCIBILITY.md), and the [measured verification record](docs/STAGE5_VERIFICATION.md).

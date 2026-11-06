@@ -229,8 +229,52 @@ CREATE TABLE IF NOT EXISTS agent_registry (
     display_name TEXT NOT NULL,
     is_adversarial INTEGER NOT NULL DEFAULT 0
 );
+-- Stage 4.5 trusted control state. Sessions and credentials are never stored here.
+CREATE TABLE IF NOT EXISTS console_jobs (
+    job_id TEXT PRIMARY KEY,
+    version INTEGER NOT NULL,
+    record_json TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS console_job_versions (
+    job_id TEXT NOT NULL,
+    version INTEGER NOT NULL,
+    actor TEXT NOT NULL,
+    record_json TEXT NOT NULL,
+    PRIMARY KEY (job_id, version)
+);
 """
-SCHEMA_VERSION = "4"
+SCHEMA += """
+CREATE TABLE IF NOT EXISTS research_runs (
+    run_id TEXT PRIMARY KEY, version INTEGER NOT NULL, record_json TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS research_run_versions (
+    run_id TEXT NOT NULL, version INTEGER NOT NULL, actor TEXT NOT NULL,
+    record_json TEXT NOT NULL, PRIMARY KEY(run_id, version)
+);
+CREATE TABLE IF NOT EXISTS research_candidates (
+    run_id TEXT NOT NULL, candidate_id TEXT NOT NULL, record_json TEXT NOT NULL,
+    PRIMARY KEY(run_id, candidate_id)
+);
+CREATE TABLE IF NOT EXISTS research_audit (
+    event_id TEXT PRIMARY KEY, run_id TEXT NOT NULL, actor TEXT NOT NULL,
+    occurred_at TEXT NOT NULL, operation TEXT NOT NULL, version INTEGER NOT NULL
+);
+"""
+SCHEMA += """
+CREATE TABLE IF NOT EXISTS platform_records (
+    kind TEXT NOT NULL, record_id TEXT NOT NULL, version INTEGER NOT NULL, record_json TEXT NOT NULL,
+    PRIMARY KEY(kind, record_id)
+);
+CREATE TABLE IF NOT EXISTS platform_versions (
+    kind TEXT NOT NULL, record_id TEXT NOT NULL, version INTEGER NOT NULL, actor TEXT NOT NULL,
+    occurred_at TEXT NOT NULL, record_json TEXT NOT NULL, PRIMARY KEY(kind, record_id, version)
+);
+CREATE TABLE IF NOT EXISTS integration_events (
+    seq INTEGER PRIMARY KEY AUTOINCREMENT, event_id TEXT UNIQUE NOT NULL, integration_id TEXT NOT NULL,
+    external_event_id TEXT, record_json TEXT NOT NULL, UNIQUE(integration_id, external_event_id)
+);
+"""
+SCHEMA_VERSION = "6"
 
 
 class Database:
@@ -250,7 +294,8 @@ class Database:
         if not read_only:
             self._conn.executescript(SCHEMA)
             self._conn.execute(
-                "INSERT OR IGNORE INTO schema_info(key, value) VALUES ('schema_version', ?)", (SCHEMA_VERSION,)
+                "INSERT INTO schema_info(key, value) VALUES ('schema_version', ?) "
+                "ON CONFLICT(key) DO UPDATE SET value = excluded.value", (SCHEMA_VERSION,)
             )
 
     def close(self) -> None:

@@ -135,6 +135,7 @@ class CapabilityGateway:
         decision_engine: DecisionEngine | None = None,
         workflow_guard: WorkflowGuard | None = None,
         context_builder: ObservationBuilder | None = None,
+        max_workflow_proposals: int | None = None,
     ) -> None:
         self._db = db
         self._repos: Repositories = monitor.repos
@@ -150,6 +151,9 @@ class CapabilityGateway:
         self._guard = workflow_guard  # Stage 2 enforcement mode (None = observation mode / Stage 1)
         self._context_builder = context_builder  # Stage 3: as-of observation for the (advisory) council
         self._reader = _StateReader(self)
+        if max_workflow_proposals is not None and (type(max_workflow_proposals) is not int or max_workflow_proposals < 1):
+            raise ValueError("max_workflow_proposals must be positive")
+        self._max_workflow_proposals = max_workflow_proposals
         # The permit key never leaves this object; agents cannot mint permits.
         self._executor = MockToolExecutor(
             permit_key=secrets.token_bytes(32), workspace=workspace, approvals=approvals, monitor=monitor,
@@ -220,6 +224,12 @@ class CapabilityGateway:
 
     async def _decide_and_execute(self, request: ActionRequest, context: TrustedAgentContext) -> GatewayResponse:
         evaluation = self._policy.evaluate(request, context, self._reader)
+        if self._max_workflow_proposals is not None and len(
+                self._monitor.get_workflow_actions(request.workflow_id)) > self._max_workflow_proposals:
+            return self._finalize(request, PolicyDecision(
+                action_id=request.action_id, decision=Decision.BLOCK,
+                reason_code=ReasonCode.EXECUTION_LIMIT_EXCEEDED,
+                explanation="Trusted workflow proposal limit exhausted.", policy_version=self._policy.policy.version), None)
 
         council_report: CouncilReport | None = None
         if self._council is not None and request.tool in self._council_tools:

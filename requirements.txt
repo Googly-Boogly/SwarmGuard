@@ -2,8 +2,9 @@
 fastapi>=0.115
 pydantic>=2.7,<3
 uvicorn>=0.30
+websockets>=14
 # Stage 3: LLM provider (live mode only; mock mode makes no requests) and optional .env loading
-openai>=3.46
+openai>=2.30,<4
 python-dotenv>=1.0
 
 # Testing (httpx is required by fastapi.testclient)

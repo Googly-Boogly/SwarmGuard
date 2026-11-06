@@ -124,3 +124,78 @@ They come from **deterministic rule-based monitors on 14 deterministic synthetic
 ## Results
 - **Mock** (`results/stage3/ethics_mock_seed0`): A–E all scored TP 7 / FP 1 / TN 5 / FN 1; 495 synthetic calls; 0 failures. This is a **pipeline check, not evidence**.
 - **Live: not run.** No API key or model was configured. The OpenAI integration is **unverified against the live API**.
+
+## Stage 4.5 — local full-stack Research Console (2026-11-06)
+
+Baseline before implementation: **268 backend tests passed** (15.38 s). FastAPI TestClient's portal hung under the execution sandbox; the same offline suite completed outside it. Existing Stage 1–4 files were inspected and retained; the original read-only API and deterministic authorization path remain intact.
+
+Implemented a new React/TypeScript/Vite/Tailwind console with source-owned shadcn-style Radix primitives, routing, TanStack Query, React Flow, Recharts, and Lucide. All operational views read persisted backend records. A separate `console_main:app` control service adds strict commands, a locally provisioned scrypt operator hash, random server-side sessions, Secure/HttpOnly/SameSite=Strict cookies, CSRF/local-Origin/Host checks, exact-operation approval review, bounded async jobs, CAS progress snapshots, cancellation, restart interruption, and authenticated ordered WebSocket delivery with cursor-based polling recovery. Original observation endpoints stay GET-only and `mode=ro`; console reads also use a separate read-only connection.
+
+Interactive mock workflows reuse the existing AutonomousAgent/AgentRuntime/task/message/gateway services. Three interactive synthetic scenarios and two finite Stage 1 scripted replays are enabled. The scripted human is labelled; interactive requests require operator review and never auto-grant. Browser live execution is refused server-side, including requests with a confirmation flag. Original live CLI functionality is preserved. No paid requests or real email were used.
+
+A pre-existing mock recipient-override parser truncated an address at its first dot; the corrected parser preserves full reserved domains, with a regression test. Detector rules and prompts were not changed, so no detector ruleset or prompt version bump was made. Controlled adversarial fixture proposals, real gateway decisions, and their checkpoint assessments are explicitly recorded. Failed/unrun trials remain visible. Tokens are unavailable when not reported; synthetic billing is zero. Console results remain `is_research_result=False`. No original `results/` files were modified.
+
+Verification on the implementation tree:
+
+- **315 backend tests passed**, including **47 new console tests** (full offline suite, 41.96 s). Coverage includes authenticated and blocked actions, CSRF, fixed human identity, stale/expired/exact approval packets, actual send/no-send outcomes, pause/resume/stop, limits, failures, progress/results/export, WebSocket authorization/replay/cursor recovery, restart recovery, and cancellation during an in-flight gateway assessment.
+- **16 Vitest/React Testing Library tests passed**; TypeScript check and production build passed.
+- **4 Chromium Playwright tests passed** (39.1 s), with real isolated FastAPI/Vite servers, temporary SQLite, default Secure operator cookie, no mocked HTTP routes, and no provider key. They exercised legitimate mock operation and explicit approval; persisted graph/council/results; actual approval mismatch blocking with zero simulated sends and audit/dependency inspection; experiment launch/pause/resume/cancellation; mobile navigation; every console section; and live WebSocket delivery.
+- `demo.py --db /tmp/swarmguard45-stage1.db`: **Acceptance check: PASS**.
+- `demo_stage2.py --db /tmp/swarmguard45-stage2.db`: **Stage 2 demonstration check: PASS**.
+- `demo_stage3.py --provider mock --db /tmp/swarmguard45-stage3.db`: **Stage 3 demonstration check: PASS**.
+
+The initial browser runs exposed a form-selector issue, a missing assessment-adapter field, an agent-count API error on populated data, and missing Uvicorn WebSocket transport dependency; these were fixed and the final runs above passed. `websockets` is now an explicit runtime dependency. Screenshots are generated under ignored `frontend/test-results/`.
+
+Limits: single process/worker, local synthetic research, three interactive scenarios, no individual-agent control, no browser live execution, no account administration or credential recovery, cooperative pause/cancellation, no public deployment claim, and no evidence of live LLM safety/performance. The original fourteen-case and live ethics research runners remain CLI operations. Stage 5 can use the console for infrastructure validation and reproducible synthetic investigations; live autonomy, independently authored hold-outs, and multi-model statistical studies remain research work.
+
+Final production-bundle verification: `SWARMGUARD_PREVIEW=1 npx playwright test` also passed the same **4 Chromium tests** (24.5 s), including WebSocket delivery, authenticated approvals, blocked laundering, controls, and all sections. The built assets were tested through Vite preview against isolated real backend services.
+
+## Stage 5 — adaptive synthetic research implementation
+
+Extended the existing simulator, gateway, ObservationBuilder, shared RiskAnalyzer, Stage 3 councils,
+and Stage 4.5 console. Added strict scenario/research commands; fixed development/adaptive/held-out
+partitions; allowlisted generation and trusted validation; eight bounded mutation families; an
+interpretable adaptive loop; normalized structural novelty; actual execution feedback; exact
+experimental observation transforms; paired council robustness; variable trusted participants;
+observational benchmarks plus isolated policy/local/global-guard interventions; conservative failure
+analysis; paired/per-framework/correlated-error/operational metrics; and CAS manifests, candidates,
+audit records and exclusive exports. No arbitrary shell/network/tool/policy or approval capabilities
+were added to agents. Live CLI generation/provider injection is explicit and priced; browser live
+execution remains disabled. Research jobs share the existing single worker and never auto-resume.
+
+The existing React frontend now includes authenticated adaptive research, benchmarks, failures and
+scaling pages. It uses actual records for controls, progress, metrics, evidence, timelines, workflow
+and communication graphs, cost/latency/intervention plots and exports. Existing Stage 1–4.5 routes
+and user changes were preserved. Version metadata is now 0.5.0. No paid call or real email occurred.
+
+New detector text applies through the same RiskAnalyzer for both windows. RULESET_VERSION was
+bumped to `stage5-rules-v2`; the constant generator prompt addition bumped PROMPT_VERSION to
+`ethics_v2`. The older prompt-version test now checks the current version rather than a literal.
+The original fourteen-scenario deterministic evaluation was rerun into a new directory,
+`results/stage5_rules_v2_verification`; historical files were not edited. These changes were not
+validated as a novel held-out improvement, and public inherited hold-outs are explicitly disclosed.
+
+Actual baseline: 315 backend tests and 16 frontend tests passed. Final verification: **379 backend
+tests passed** (64 new Stage 5 cases), **20 frontend tests passed**, lint and production build passed,
+and **6 production Chromium Playwright tests passed**. All four required demonstrations printed
+PASS. Restricted-sandbox FastAPI/browser process limitations required running the successful full
+backend and isolated browser checks outside that sandbox; the offline socket test fixture remained
+active. A development-suite adapter failure was preserved in research_010, corrected, regression-tested,
+and rerun successfully as research_022. No implementation date has been inferred.
+
+Final measured artifacts: research_017 (adaptive demo), research_018 (3/5/8/12 scaling), research_019
+(adaptive CLI), research_020 (adaptive-search benchmark), research_021 (held-out benchmark), and
+research_022 (development benchmark), all COMPLETED with zero failed final trials and no validation
+rejections. Adaptive research_019 constructed 36 definitions, issued/validated/executed four (including
+two agent-count refinements), and left 32 untested. Four prohibited synthetic outcomes occurred under
+observation; no gateway block was expected from exact approvals alone. Local monitoring missed the
+cumulative cases. Removing source observations removed global alerts on those cases. Held-out runs
+preserve the transformed-disclosure miss and stale-authorization false positive, including correlated
+mock council errors. Mock agreement is not evidence for ethical specialization. Detailed per-condition,
+per-partition scores, intervention utility, costs, scaling workload, exact commands and limitations are
+recorded in `docs/STAGE5_VERIFICATION.md` and the untouched experiment exports.
+
+Remaining limits: constrained scripted workflows; public same-author fixtures; exact-value rather
+than semantic provenance; critical-only primary checkpoints; dependent repeated mock trajectories;
+cooperative bounded local execution; no independent sealed benchmark; and no verified live Stage 5
+run. Stage 6 should prioritize those research validity and controlled live verification gaps.

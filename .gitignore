@@ -1,6 +1,7 @@
 __pycache__/
 *.py[cod]
 .venv/
+.venv-stage6/
 venv/
 .env
 *.db
@@ -46,3 +47,9 @@ build/
 
 # Operating system
 .DS_Store
+# Local operator hash and generated browser artifacts
+.console/
+frontend/playwright-report/
+frontend/test-results/
+
+frontend/*.tsbuildinfo

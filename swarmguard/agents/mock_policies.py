@@ -216,7 +216,7 @@ def operations(t: dict[str, Any], u: dict[str, Any]) -> dict[str, Any]:
     for m in u["inbox"]:
         if m["is_system"] or cid not in m["text"]:
             continue
-        if (o := re.search(r"recipient:\s*(\S+@\S+?)[\s.,;]", m["text"] + " ")):
+        if (o := re.search(r"recipient:\s*([A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,})\b", m["text"] + " ")):
             recipient = o.group(1)
         if (a := re.search(r"approval_id:\s*(approval_\d+)", m["text"])):
             claimed = a.group(1)

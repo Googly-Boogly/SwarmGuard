@@ -500,3 +500,145 @@ class Repositories:
         self.autonomous_assessments = JsonRecordRepository(db, "autonomous_assessments")
         self.agent_memory = JsonRecordRepository(db, "agent_memory")
         self.agent_registry = AgentRegistryRepository(db)
+
+
+class ConsoleJobRepository:
+    """Trusted job state, versioned with immutable snapshots and a CAS update.
+
+    Progress is control metadata, separate from agent-editable resources. Each snapshot
+    includes the responsible control principal. Recovery never schedules a job.
+    """
+
+    def __init__(self, db: Database) -> None:
+        self._db = db
+
+    def insert(self, job_id: str, record: dict[str, Any], actor: str) -> None:
+        with self._db.transaction():
+            self._db.execute("INSERT INTO console_jobs(job_id, version, record_json) VALUES (?, 1, ?)",
+                             (job_id, _json(record)))
+            self._db.execute("INSERT INTO console_job_versions(job_id, version, actor, record_json) VALUES (?, 1, ?, ?)",
+                             (job_id, actor, _json(record)))
+
+    def save(self, job_id: str, record: dict[str, Any], *, expected_version: int, actor: str) -> int:
+        with self._db.transaction():
+            changed = self._db.execute(
+                "UPDATE console_jobs SET version = version + 1, record_json = ? WHERE job_id = ? AND version = ?",
+                (_json(record), job_id, expected_version))
+            if changed.rowcount != 1:
+                raise RuntimeError("job version conflict")
+            self._db.execute("INSERT INTO console_job_versions(job_id, version, actor, record_json) VALUES (?, ?, ?, ?)",
+                             (job_id, expected_version + 1, actor, _json(record)))
+        return expected_version + 1
+
+    def get(self, job_id: str) -> tuple[dict[str, Any], int] | None:
+        row = self._db.fetchone("SELECT record_json, version FROM console_jobs WHERE job_id = ?", (job_id,))
+        return (json.loads(row["record_json"]), row["version"]) if row else None
+
+    def list(self) -> list[dict[str, Any]]:
+        return [json.loads(r["record_json"]) for r in self._db.fetchall(
+            "SELECT record_json FROM console_jobs ORDER BY job_id DESC")]
+
+
+class ConsoleReadRepository:
+    """Bounded read queries, used with a mode=ro connection. No SQL comes from HTTP inputs."""
+
+    def __init__(self, db: Database) -> None:
+        self._db = db
+
+    def events(self, *, workflow_id: str | None = None, agent_id: str | None = None,
+               event_type: str | None = None, search: str = "", after_seq: int = 0,
+               limit: int = 100, offset: int = 0) -> list[WorkflowEvent]:
+        rows = self._db.fetchall(
+            "SELECT * FROM events WHERE seq > ? AND (? IS NULL OR workflow_id = ?) "
+            "AND (? IS NULL OR agent_id = ?) AND (? IS NULL OR event_type = ?) "
+            "AND (? = '' OR instr(lower(summary), lower(?)) > 0 OR instr(lower(event_id), lower(?)) > 0) "
+            "ORDER BY seq LIMIT ? OFFSET ?",
+            (after_seq, workflow_id, workflow_id, agent_id, agent_id, event_type, event_type,
+             search, search, search, limit, offset))
+        return [EventRepository._from_row(r) for r in rows]
+
+
+class ResearchRepository:
+    """Trusted, CAS-versioned run records and append-only candidate trajectories."""
+    def __init__(self, db: Database) -> None:
+        self.db = db
+
+    def create(self, record: dict[str, Any], actor: str, occurred_at: str) -> None:
+        with self.db.transaction():
+            self.db.execute("INSERT INTO research_runs VALUES (?, 1, ?)", (record["run_id"], _json(record)))
+            self.db.execute("INSERT INTO research_run_versions VALUES (?, 1, ?, ?)", (record["run_id"], actor, _json(record)))
+            self.audit(record["run_id"], actor, occurred_at, "CREATED", 1)
+
+    def audit(self, run_id: str, actor: str, occurred_at: str, operation: str, version: int) -> None:
+        self.db.execute("INSERT INTO research_audit VALUES (?, ?, ?, ?, ?, ?)",
+                        (self.db.next_id("research_event"), run_id, actor, occurred_at, operation, version))
+
+    def save(self, record: dict[str, Any], *, expected_version: int, actor: str, occurred_at: str) -> int:
+        with self.db.transaction():
+            result = self.db.execute("UPDATE research_runs SET record_json = ?, version = version + 1 WHERE run_id = ? AND version = ?",
+                                     (_json(record), record["run_id"], expected_version))
+            if result.rowcount != 1:
+                raise RuntimeError("research run version conflict")
+            self.db.execute("INSERT INTO research_run_versions VALUES (?, ?, ?, ?)",
+                            (record["run_id"], expected_version + 1, actor, _json(record)))
+            self.audit(record["run_id"], actor, occurred_at, record["status"], expected_version + 1)
+        return expected_version + 1
+
+    def get(self, run_id: str) -> tuple[dict[str, Any], int] | None:
+        row = self.db.fetchone("SELECT record_json, version FROM research_runs WHERE run_id = ?", (run_id,))
+        return (json.loads(row["record_json"]), row["version"]) if row else None
+
+    def list(self, limit: int = 100, offset: int = 0) -> list[dict[str, Any]]:
+        return [json.loads(r["record_json"]) for r in self.db.fetchall(
+            "SELECT record_json FROM research_runs ORDER BY run_id DESC LIMIT ? OFFSET ?", (limit, offset))]
+
+    def add_candidate(self, run_id: str, candidate_id: str, record: dict[str, Any]) -> None:
+        with self.db.transaction():
+            self.db.execute("INSERT INTO research_candidates VALUES (?, ?, ?)", (run_id, candidate_id, _json(record)))
+            self.audit(run_id, "swarmguard.stage5", record["recorded_at"], "CANDIDATE_RECORDED", 1)
+
+    def candidates(self, run_id: str, limit: int = 100) -> list[dict[str, Any]]:
+        return [json.loads(r["record_json"]) for r in self.db.fetchall(
+            "SELECT record_json FROM research_candidates WHERE run_id = ? ORDER BY candidate_id LIMIT ?", (run_id, limit))]
+
+
+class PlatformRepository:
+    """Stage 6 trusted metadata, immutable baselines and versioned control state."""
+    def __init__(self, db: Database) -> None:
+        self.db = db
+
+    def create(self, kind: str, record_id: str, record: dict[str, Any], *, actor: str, occurred_at: str) -> None:
+        with self.db.transaction():
+            self.db.execute("INSERT INTO platform_records VALUES (?, ?, 1, ?)", (kind, record_id, _json(record)))
+            self.db.execute("INSERT INTO platform_versions VALUES (?, ?, 1, ?, ?, ?)",
+                            (kind, record_id, actor, occurred_at, _json(record)))
+
+    def get(self, kind: str, record_id: str) -> tuple[dict[str, Any], int] | None:
+        r = self.db.fetchone("SELECT record_json, version FROM platform_records WHERE kind = ? AND record_id = ?", (kind, record_id))
+        return (json.loads(r["record_json"]), r["version"]) if r else None
+
+    def list(self, kind: str, limit: int = 100) -> list[dict[str, Any]]:
+        return [json.loads(r["record_json"]) for r in self.db.fetchall(
+            "SELECT record_json FROM platform_records WHERE kind = ? ORDER BY record_id DESC LIMIT ?", (kind, limit))]
+
+    def save(self, kind: str, record_id: str, record: dict[str, Any], *, expected_version: int,
+             actor: str, occurred_at: str) -> int:
+        if kind == "baseline":
+            raise ValueError("official baselines are immutable; designate a new baseline")
+        with self.db.transaction():
+            changed = self.db.execute("UPDATE platform_records SET record_json = ?, version = version + 1 "
+                "WHERE kind = ? AND record_id = ? AND version = ?", (_json(record), kind, record_id, expected_version))
+            if changed.rowcount != 1:
+                raise RuntimeError("platform record version conflict")
+            self.db.execute("INSERT INTO platform_versions VALUES (?, ?, ?, ?, ?, ?)",
+                (kind, record_id, expected_version + 1, actor, occurred_at, _json(record)))
+        return expected_version + 1
+
+    def append_integration_event(self, event: dict[str, Any]) -> None:
+        self.db.execute("INSERT INTO integration_events(event_id, integration_id, external_event_id, record_json) VALUES (?, ?, ?, ?)",
+            (event["event_id"], event["integration_id"], event.get("external_event_id"), _json(event)))
+
+    def integration_events(self, integration_id: str | None = None, after_seq: int = 0, limit: int = 500) -> list[dict[str, Any]]:
+        return [{**json.loads(r["record_json"]), "seq": r["seq"]} for r in self.db.fetchall(
+            "SELECT seq, record_json FROM integration_events WHERE (? IS NULL OR integration_id = ?) "
+            "AND seq > ? ORDER BY seq LIMIT ?", (integration_id, integration_id, after_seq, limit))]

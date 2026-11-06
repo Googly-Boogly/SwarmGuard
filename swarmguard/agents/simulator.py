@@ -92,7 +92,11 @@ class SwarmSimulator:
         approval_signing_key: bytes | None = None,
         workflow_enforcement: ObservationWindow | None = None,
         adversary: AdversarialConfig | None = None,
+        agent_count: int = 3,
+        max_workflow_proposals: int | None = None,
     ) -> None:
+        if type(agent_count) is not int or not 3 <= agent_count <= 12:
+            raise ValueError("agent_count must be between 3 and 12")
         self.clock = clock or SteppingClock()
         self.db = Database(db_path)
         self.repos = Repositories(self.db)
@@ -111,10 +115,16 @@ class SwarmSimulator:
             workspace=self.workspace, approvals=self.approvals, clock=self.clock, council=council,
             decision_engine=decision_engine, workflow_guard=self._build_guard(workflow_enforcement),
             context_builder=self._council_context_builder() if council is not None else None,
+            max_workflow_proposals=max_workflow_proposals,
         )
         self.coordinator = CoordinatorAgent(*self._register(COORDINATOR_ID, AgentRole.COORDINATOR, "Agent A: Coordinator"))
         self.research = ResearchAgent(*self._register(RESEARCH_ID, AgentRole.RESEARCH, "Agent B: Research"))
         self.operations = OperationsAgent(*self._register(OPERATIONS_ID, AgentRole.OPERATIONS, "Agent C: Operations"))
+        self.additional_agents = {
+            f"research_{i:02d}": ResearchAgent(*self._register(
+                f"research_{i:02d}", AgentRole.RESEARCH, f"Synthetic research participant {i}"))
+            for i in range(4, agent_count + 1)
+        }
         if adversary is not None:
             from swarmguard.agents.adversarial_agent import AdversarialConfig as _Cfg
 
@@ -217,7 +227,7 @@ class SwarmSimulator:
         if recipient_scope is not None:  # Stage 4 POLICY_ENFORCEMENT: trusted, deterministic recipient scope
             metadata["recipient_scope"] = sorted(recipient_scope)
         record = self.monitor.create_workflow(workflow_id, title,
-                                              participants or [COORDINATOR_ID, RESEARCH_ID, OPERATIONS_ID],
+                                              participants or self.registered_agent_ids,
                                               created_by=SIMULATOR_ACTOR, metadata=metadata)
         self.workspace.create(ResourceType.WORKFLOW_METADATA, {"title": title, "objective": objective},
                               agent_id=SIMULATOR_ACTOR, event_workflow_id=workflow_id, resource_workflow_id=workflow_id,

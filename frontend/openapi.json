@@ -1,0 +1,2915 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "SwarmGuard Research Console",
+    "description": "Loopback research prototype. Mock execution only. Authorization stays in the Capability Gateway.",
+    "version": "0.5.0"
+  },
+  "paths": {
+    "/api/research/{section}": {
+      "get": {
+        "summary": "Runs",
+        "operationId": "runs_api_research__section__get",
+        "parameters": [
+          {
+            "name": "section",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Section"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 50,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "title": "Offset"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": true
+                  },
+                  "title": "Response Runs Api Research  Section  Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/research/adversarial/runs": {
+      "get": {
+        "summary": "Adaptive Runs",
+        "operationId": "adaptive_runs_api_research_adversarial_runs_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  "type": "array",
+                  "title": "Response Adaptive Runs Api Research Adversarial Runs Get"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Start",
+        "operationId": "start_api_research_adversarial_runs_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResearchConfig"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Start Api Research Adversarial Runs Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/research/scaling/{run_id}": {
+      "get": {
+        "summary": "Detail",
+        "operationId": "detail_api_research_scaling__run_id__get",
+        "parameters": [
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Run Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Detail Api Research Scaling  Run Id  Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/research/benchmarks/{run_id}": {
+      "get": {
+        "summary": "Detail",
+        "operationId": "detail_api_research_benchmarks__run_id__get",
+        "parameters": [
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Run Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Detail Api Research Benchmarks  Run Id  Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/research/adversarial/runs/{run_id}": {
+      "get": {
+        "summary": "Detail",
+        "operationId": "detail_api_research_adversarial_runs__run_id__get",
+        "parameters": [
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Run Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Detail Api Research Adversarial Runs  Run Id  Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/research/runs/{run_id}": {
+      "get": {
+        "summary": "Detail",
+        "operationId": "detail_api_research_runs__run_id__get",
+        "parameters": [
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Run Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Detail Api Research Runs  Run Id  Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/research/adversarial/runs/{run_id}/candidates": {
+      "get": {
+        "summary": "Candidates",
+        "operationId": "candidates_api_research_adversarial_runs__run_id__candidates_get",
+        "parameters": [
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Run Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": true
+                  },
+                  "title": "Response Candidates Api Research Adversarial Runs  Run Id  Candidates Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/research/runs/{run_id}/candidates": {
+      "get": {
+        "summary": "Candidates",
+        "operationId": "candidates_api_research_runs__run_id__candidates_get",
+        "parameters": [
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Run Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": true
+                  },
+                  "title": "Response Candidates Api Research Runs  Run Id  Candidates Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/research/failures/{failure_id}": {
+      "get": {
+        "summary": "Failure",
+        "operationId": "failure_api_research_failures__failure_id__get",
+        "parameters": [
+          {
+            "name": "failure_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Failure Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Failure Api Research Failures  Failure Id  Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/research/scaling/runs": {
+      "post": {
+        "summary": "Start",
+        "operationId": "start_api_research_scaling_runs_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResearchConfig"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Start Api Research Scaling Runs Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/research/benchmarks/runs": {
+      "post": {
+        "summary": "Start",
+        "operationId": "start_api_research_benchmarks_runs_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResearchConfig"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Start Api Research Benchmarks Runs Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/research/adversarial/runs/{run_id}/cancel": {
+      "post": {
+        "summary": "Cancel",
+        "operationId": "cancel_api_research_adversarial_runs__run_id__cancel_post",
+        "parameters": [
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Run Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Command"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "boolean"
+                  },
+                  "title": "Response Cancel Api Research Adversarial Runs  Run Id  Cancel Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/research/runs/{run_id}/cancel": {
+      "post": {
+        "summary": "Cancel",
+        "operationId": "cancel_api_research_runs__run_id__cancel_post",
+        "parameters": [
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Run Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Command"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "boolean"
+                  },
+                  "title": "Response Cancel Api Research Runs  Run Id  Cancel Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/research/runs/{run_id}/export": {
+      "get": {
+        "summary": "Export",
+        "operationId": "export_api_research_runs__run_id__export_get",
+        "parameters": [
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Run Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Export Api Research Runs  Run Id  Export Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/health": {
+      "get": {
+        "summary": "Health",
+        "operationId": "health_api_health_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Health Api Health Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/session": {
+      "get": {
+        "summary": "Session",
+        "operationId": "session_api_session_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionView"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Login",
+        "operationId": "login_api_session_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Login"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionView"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/session/logout": {
+      "post": {
+        "summary": "Logout",
+        "operationId": "logout_api_session_logout_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "boolean"
+                  },
+                  "type": "object",
+                  "title": "Response Logout Api Session Logout Post"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/scenarios": {
+      "get": {
+        "summary": "Scenarios",
+        "operationId": "scenarios_api_scenarios_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ScenarioView"
+                  },
+                  "type": "array",
+                  "title": "Response Scenarios Api Scenarios Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/workflows": {
+      "get": {
+        "summary": "Workflows",
+        "operationId": "workflows_api_workflows_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/WorkflowView"
+                  },
+                  "type": "array",
+                  "title": "Response Workflows Api Workflows Get"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Start Workflow",
+        "operationId": "start_workflow_api_workflows_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RunConfig"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobRecord"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/agents": {
+      "get": {
+        "summary": "Agents",
+        "operationId": "agents_api_agents_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/AgentView"
+                  },
+                  "type": "array",
+                  "title": "Response Agents Api Agents Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/overview": {
+      "get": {
+        "summary": "Overview",
+        "operationId": "overview_api_overview_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Overview"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/events": {
+      "get": {
+        "summary": "Events",
+        "operationId": "events_api_events_get",
+        "parameters": [
+          {
+            "name": "workflow_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^[A-Za-z0-9_.:-]{1,64}$"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Workflow Id"
+            }
+          },
+          {
+            "name": "agent_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^[A-Za-z0-9_.:-]{1,64}$"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Agent Id"
+            }
+          },
+          {
+            "name": "event_type",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Event Type"
+            }
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 200,
+              "default": "",
+              "title": "Search"
+            }
+          },
+          {
+            "name": "after_seq",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "title": "After Seq"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 500,
+              "minimum": 1,
+              "default": 100,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "title": "Offset"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/WorkflowEvent"
+                  },
+                  "title": "Response Events Api Events Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/decisions": {
+      "get": {
+        "summary": "Decisions",
+        "operationId": "decisions_api_decisions_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/DecisionRecord"
+                  },
+                  "type": "array",
+                  "title": "Response Decisions Api Decisions Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/workflows/{workflow_id}/graph": {
+      "get": {
+        "summary": "Graph",
+        "operationId": "graph_api_workflows__workflow_id__graph_get",
+        "parameters": [
+          {
+            "name": "workflow_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_.:-]{1,64}$",
+              "title": "Workflow Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkflowGraph"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/workflows/{workflow_id}/records": {
+      "get": {
+        "summary": "Records",
+        "operationId": "records_api_workflows__workflow_id__records_get",
+        "parameters": [
+          {
+            "name": "workflow_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_.:-]{1,64}$",
+              "title": "Workflow Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Records Api Workflows  Workflow Id  Records Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/gateway": {
+      "get": {
+        "summary": "Gateway",
+        "operationId": "gateway_api_gateway_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Gateway Api Gateway Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/approvals": {
+      "get": {
+        "summary": "Approval Queue",
+        "operationId": "approval_queue_api_approvals_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ApprovalView"
+                  },
+                  "type": "array",
+                  "title": "Response Approval Queue Api Approvals Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/approvals/{approval_id}": {
+      "post": {
+        "summary": "Decide Approval",
+        "operationId": "decide_approval_api_approvals__approval_id__post",
+        "parameters": [
+          {
+            "name": "approval_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_.:-]{1,64}$",
+              "title": "Approval Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApprovalDecision"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApprovalView"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/jobs": {
+      "get": {
+        "summary": "Jobs",
+        "operationId": "jobs_api_jobs_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/JobRecord"
+                  },
+                  "type": "array",
+                  "title": "Response Jobs Api Jobs Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/jobs/{job_id}": {
+      "get": {
+        "summary": "Job",
+        "operationId": "job_api_jobs__job_id__get",
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_.:-]{1,64}$",
+              "title": "Job Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobRecord"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/experiments": {
+      "post": {
+        "summary": "Start Experiment",
+        "operationId": "start_experiment_api_experiments_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RunConfig"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobRecord"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/jobs/{job_id}/{command}": {
+      "post": {
+        "summary": "Control Job",
+        "operationId": "control_job_api_jobs__job_id___command__post",
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_.:-]{1,64}$",
+              "title": "Job Id"
+            }
+          },
+          {
+            "name": "command",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "enum": [
+                "pause",
+                "resume",
+                "stop"
+              ],
+              "type": "string",
+              "title": "Command"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobRecord"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/jobs/{job_id}/results": {
+      "get": {
+        "summary": "Result",
+        "operationId": "result_api_jobs__job_id__results_get",
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_.:-]{1,64}$",
+              "title": "Job Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Result Api Jobs  Job Id  Results Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/jobs/{job_id}/export": {
+      "get": {
+        "summary": "Export",
+        "operationId": "export_api_jobs__job_id__export_get",
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_.:-]{1,64}$",
+              "title": "Job Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "ActorType": {
+        "type": "string",
+        "enum": [
+          "AGENT",
+          "HUMAN",
+          "SYSTEM",
+          "MONITOR"
+        ],
+        "title": "ActorType"
+      },
+      "AgentView": {
+        "properties": {
+          "agent_id": {
+            "type": "string",
+            "title": "Agent Id"
+          },
+          "role": {
+            "type": "string",
+            "title": "Role"
+          },
+          "display_name": {
+            "type": "string",
+            "title": "Display Name"
+          },
+          "permissions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Permissions"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "workflow_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Workflow Ids"
+          },
+          "actions": {
+            "type": "integer",
+            "title": "Actions"
+          },
+          "last_activity": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Activity"
+          },
+          "task": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Task"
+          }
+        },
+        "type": "object",
+        "required": [
+          "agent_id",
+          "role",
+          "display_name",
+          "permissions",
+          "status",
+          "workflow_ids",
+          "actions",
+          "last_activity",
+          "task"
+        ],
+        "title": "AgentView"
+      },
+      "ApprovalDecision": {
+        "properties": {
+          "operation_hash": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$",
+            "title": "Operation Hash"
+          },
+          "confirmed": {
+            "type": "boolean",
+            "const": true,
+            "title": "Confirmed"
+          },
+          "decision": {
+            "type": "string",
+            "enum": [
+              "APPROVE",
+              "REJECT"
+            ],
+            "title": "Decision"
+          },
+          "reason": {
+            "type": "string",
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Reason",
+            "default": "Operator reviewed exact operation"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "operation_hash",
+          "confirmed",
+          "decision"
+        ],
+        "title": "ApprovalDecision"
+      },
+      "ApprovalView": {
+        "properties": {
+          "approval_id": {
+            "type": "string",
+            "title": "Approval Id"
+          },
+          "workflow_id": {
+            "type": "string",
+            "title": "Workflow Id"
+          },
+          "operation": {
+            "type": "string",
+            "title": "Operation"
+          },
+          "resource_id": {
+            "type": "string",
+            "title": "Resource Id"
+          },
+          "resource_version": {
+            "type": "integer",
+            "title": "Resource Version"
+          },
+          "parameters": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Parameters"
+          },
+          "requested_by": {
+            "type": "string",
+            "title": "Requested By"
+          },
+          "operation_hash": {
+            "type": "string",
+            "title": "Operation Hash"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "approver_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Approver Id"
+          },
+          "created_at": {
+            "type": "string",
+            "title": "Created At"
+          },
+          "expires_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expires At"
+          },
+          "actionable": {
+            "type": "boolean",
+            "title": "Actionable"
+          }
+        },
+        "type": "object",
+        "required": [
+          "approval_id",
+          "workflow_id",
+          "operation",
+          "resource_id",
+          "resource_version",
+          "parameters",
+          "requested_by",
+          "operation_hash",
+          "status",
+          "approver_id",
+          "created_at",
+          "expires_at",
+          "actionable"
+        ],
+        "title": "ApprovalView"
+      },
+      "Command": {
+        "properties": {},
+        "additionalProperties": false,
+        "type": "object",
+        "title": "Command"
+      },
+      "Decision": {
+        "type": "string",
+        "enum": [
+          "ALLOW",
+          "BLOCK",
+          "ESCALATE"
+        ],
+        "title": "Decision"
+      },
+      "DecisionRecord": {
+        "properties": {
+          "decision_id": {
+            "type": "string",
+            "title": "Decision Id"
+          },
+          "action_id": {
+            "type": "string",
+            "title": "Action Id"
+          },
+          "workflow_id": {
+            "type": "string",
+            "title": "Workflow Id"
+          },
+          "agent_id": {
+            "type": "string",
+            "title": "Agent Id"
+          },
+          "tool": {
+            "type": "string",
+            "title": "Tool"
+          },
+          "decision": {
+            "$ref": "#/components/schemas/Decision"
+          },
+          "reason_code": {
+            "$ref": "#/components/schemas/ReasonCode"
+          },
+          "explanation": {
+            "type": "string",
+            "title": "Explanation"
+          },
+          "details": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Details"
+          },
+          "policy_decision": {
+            "$ref": "#/components/schemas/Decision"
+          },
+          "policy_reason_code": {
+            "$ref": "#/components/schemas/ReasonCode"
+          },
+          "checks_passed": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Checks Passed"
+          },
+          "advisory_recommendation": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Decision"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "advisory_summary": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Advisory Summary"
+          },
+          "executed": {
+            "type": "boolean",
+            "title": "Executed",
+            "default": false
+          },
+          "execution_status": {
+            "type": "string",
+            "title": "Execution Status",
+            "default": "NOT_EXECUTED"
+          },
+          "policy_version": {
+            "type": "string",
+            "title": "Policy Version",
+            "default": ""
+          },
+          "decided_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Decided At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "decision_id",
+          "action_id",
+          "workflow_id",
+          "agent_id",
+          "tool",
+          "decision",
+          "reason_code",
+          "explanation",
+          "policy_decision",
+          "policy_reason_code",
+          "decided_at"
+        ],
+        "title": "DecisionRecord",
+        "description": "The final, persisted gateway decision for one action."
+      },
+      "EdgeType": {
+        "type": "string",
+        "enum": [
+          "PROPOSED_BY",
+          "ASSIGNED_BY",
+          "ASSIGNED_TO",
+          "DEPENDS_ON",
+          "READS_FROM",
+          "MODIFIES",
+          "SUPERSEDES",
+          "REQUESTS_APPROVAL",
+          "BINDS_TO",
+          "APPROVED_BY",
+          "REJECTED_BY",
+          "INVALIDATED_BY",
+          "CITES_APPROVAL",
+          "CONSUMED_BY",
+          "DECIDED",
+          "RESULTED_IN",
+          "EXECUTED_AFTER"
+        ],
+        "title": "EdgeType"
+      },
+      "EventType": {
+        "type": "string",
+        "enum": [
+          "WORKFLOW_STARTED",
+          "ACTION_PROPOSED",
+          "DECISION_RECORDED",
+          "ACTION_EXECUTED",
+          "ACTION_EXECUTION_FAILED",
+          "RESOURCE_READ",
+          "RESOURCE_CREATED",
+          "RESOURCE_MODIFIED",
+          "TASK_ASSIGNED",
+          "TASK_COMPLETED",
+          "APPROVAL_REQUESTED",
+          "APPROVAL_GRANTED",
+          "APPROVAL_REJECTED",
+          "APPROVAL_INVALIDATED",
+          "APPROVAL_EXPIRED",
+          "APPROVAL_CONSUMED",
+          "EMAIL_SENT_SIMULATED",
+          "ETHICS_ASSESSMENT",
+          "SECURITY_ALERT",
+          "WORKFLOW_RISK_ASSESSMENT",
+          "MESSAGE_SENT",
+          "AGENT_DECISION",
+          "AGENT_DECISION_REJECTED",
+          "TASK_STATUS_CHANGED",
+          "INTERVENTION_ISSUED",
+          "WORKFLOW_PAUSED",
+          "WORKFLOW_TERMINATED"
+        ],
+        "title": "EventType"
+      },
+      "GraphEdge": {
+        "properties": {
+          "source": {
+            "type": "string",
+            "title": "Source"
+          },
+          "target": {
+            "type": "string",
+            "title": "Target"
+          },
+          "edge_type": {
+            "$ref": "#/components/schemas/EdgeType"
+          },
+          "causal": {
+            "type": "boolean",
+            "title": "Causal",
+            "description": "True only for edges derived from explicit references."
+          },
+          "evidence_event_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Evidence Event Ids"
+          }
+        },
+        "type": "object",
+        "required": [
+          "source",
+          "target",
+          "edge_type",
+          "causal"
+        ],
+        "title": "GraphEdge"
+      },
+      "GraphNode": {
+        "properties": {
+          "node_id": {
+            "type": "string",
+            "title": "Node Id"
+          },
+          "node_type": {
+            "$ref": "#/components/schemas/NodeType"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "ref_table": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ref Table",
+            "description": "Persisted table backing this node."
+          },
+          "ref_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ref Id",
+            "description": "Primary key in ref_table."
+          },
+          "event_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Event Ids"
+          },
+          "attributes": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Attributes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "node_id",
+          "node_type",
+          "label"
+        ],
+        "title": "GraphNode"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "JobRecord": {
+        "properties": {
+          "job_id": {
+            "type": "string",
+            "title": "Job Id"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "workflow",
+              "experiment"
+            ],
+            "title": "Kind"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "config": {
+            "$ref": "#/components/schemas/RunConfig"
+          },
+          "created_at": {
+            "type": "string",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "title": "Updated At"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          },
+          "completed_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Completed At"
+          },
+          "workflow_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Workflow Ids"
+          },
+          "completed_trials": {
+            "type": "integer",
+            "title": "Completed Trials",
+            "default": 0
+          },
+          "failed_trials": {
+            "type": "integer",
+            "title": "Failed Trials",
+            "default": 0
+          },
+          "total_trials": {
+            "type": "integer",
+            "title": "Total Trials"
+          },
+          "current_scenario": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Current Scenario"
+          },
+          "step": {
+            "type": "integer",
+            "title": "Step",
+            "default": 0
+          },
+          "active_agent": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Active Agent"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "outcomes": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Outcomes"
+          },
+          "usage": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Usage"
+          },
+          "metadata": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Metadata"
+          },
+          "is_research_result": {
+            "type": "boolean",
+            "title": "Is Research Result",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "job_id",
+          "kind",
+          "status",
+          "config",
+          "created_at",
+          "updated_at",
+          "total_trials"
+        ],
+        "title": "JobRecord"
+      },
+      "Login": {
+        "properties": {
+          "password": {
+            "type": "string",
+            "maxLength": 256,
+            "minLength": 1,
+            "title": "Password"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "password"
+        ],
+        "title": "Login"
+      },
+      "NodeType": {
+        "type": "string",
+        "enum": [
+          "AGENT",
+          "HUMAN",
+          "SYSTEM",
+          "ACTION",
+          "RESOURCE_VERSION",
+          "APPROVAL",
+          "DECISION",
+          "EXECUTION"
+        ],
+        "title": "NodeType"
+      },
+      "Overview": {
+        "properties": {
+          "registered_agents": {
+            "type": "integer",
+            "title": "Registered Agents"
+          },
+          "active_workflows": {
+            "type": "integer",
+            "title": "Active Workflows"
+          },
+          "completed_workflows": {
+            "type": "integer",
+            "title": "Completed Workflows"
+          },
+          "proposed_actions": {
+            "type": "integer",
+            "title": "Proposed Actions"
+          },
+          "allowed_actions": {
+            "type": "integer",
+            "title": "Allowed Actions"
+          },
+          "blocked_actions": {
+            "type": "integer",
+            "title": "Blocked Actions"
+          },
+          "escalated_actions": {
+            "type": "integer",
+            "title": "Escalated Actions"
+          },
+          "pending_approvals": {
+            "type": "integer",
+            "title": "Pending Approvals"
+          },
+          "safety_findings": {
+            "type": "integer",
+            "title": "Safety Findings"
+          },
+          "evaluation_runs": {
+            "type": "integer",
+            "title": "Evaluation Runs"
+          },
+          "recent_decisions": {
+            "items": {
+              "$ref": "#/components/schemas/DecisionRecord"
+            },
+            "type": "array",
+            "title": "Recent Decisions"
+          }
+        },
+        "type": "object",
+        "required": [
+          "registered_agents",
+          "active_workflows",
+          "completed_workflows",
+          "proposed_actions",
+          "allowed_actions",
+          "blocked_actions",
+          "escalated_actions",
+          "pending_approvals",
+          "safety_findings",
+          "evaluation_runs",
+          "recent_decisions"
+        ],
+        "title": "Overview"
+      },
+      "ReasonCode": {
+        "type": "string",
+        "enum": [
+          "EXECUTION_LIMIT_EXCEEDED",
+          "AUTHORIZED",
+          "INVALID_ACTION",
+          "INVALID_AGENT_IDENTITY",
+          "REPLAYED_REQUEST",
+          "UNKNOWN_TOOL",
+          "AGENT_NOT_AUTHORIZED",
+          "WORKFLOW_NOT_FOUND",
+          "WORKFLOW_NOT_ACTIVE",
+          "WORKFLOW_MISMATCH",
+          "NOT_WORKFLOW_PARTICIPANT",
+          "RESOURCE_NOT_FOUND",
+          "RESOURCE_ACCESS_DENIED",
+          "RESOURCE_VERSION_MISMATCH",
+          "REQUEST_CONTENT_MISMATCH",
+          "RECIPIENT_NOT_ALLOWED",
+          "INVALID_ASSIGNEE",
+          "TASK_NOT_ASSIGNED",
+          "APPROVAL_REQUIRED",
+          "APPROVAL_NOT_FOUND",
+          "APPROVAL_PENDING",
+          "APPROVAL_REJECTED",
+          "APPROVAL_EXPIRED",
+          "APPROVAL_ALREADY_USED",
+          "APPROVAL_MISMATCH",
+          "APPROVAL_INVALIDATED",
+          "APPROVAL_INTEGRITY_FAILURE",
+          "UNTRUSTED_APPROVER",
+          "EXECUTION_PRECONDITION_FAILED",
+          "EXECUTION_ERROR",
+          "INTERNAL_ERROR",
+          "ETHICS_ESCALATION",
+          "WORKFLOW_RISK_ESCALATION",
+          "INVALID_RECIPIENT_AGENT",
+          "DELEGATION_EXCEEDS_PERMISSIONS",
+          "RECIPIENT_OUT_OF_WORKFLOW_SCOPE"
+        ],
+        "title": "ReasonCode"
+      },
+      "ResearchConfig": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "adaptive",
+              "benchmark",
+              "scaling"
+            ],
+            "title": "Kind",
+            "default": "adaptive"
+          },
+          "execution_mode": {
+            "type": "string",
+            "enum": [
+              "mock",
+              "openai"
+            ],
+            "title": "Execution Mode",
+            "default": "mock"
+          },
+          "live_authorized": {
+            "type": "boolean",
+            "title": "Live Authorized",
+            "default": false
+          },
+          "partition": {
+            "type": "string",
+            "enum": [
+              "development",
+              "adaptive_search",
+              "held_out"
+            ],
+            "title": "Partition",
+            "default": "adaptive_search"
+          },
+          "category": {
+            "type": "string",
+            "enum": [
+              "all",
+              "approval_integrity",
+              "distributed_coordination",
+              "information_flow",
+              "shared_memory",
+              "task_decomposition",
+              "monitor_manipulation",
+              "legitimate_collaboration"
+            ],
+            "title": "Category",
+            "default": "all"
+          },
+          "research_objective": {
+            "type": "string",
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Research Objective",
+            "default": "Evaluate synthetic cross-agent safety"
+          },
+          "agent_count": {
+            "type": "integer",
+            "enum": [
+              3,
+              5,
+              8,
+              12
+            ],
+            "title": "Agent Count",
+            "default": 3
+          },
+          "monitor": {
+            "type": "string",
+            "enum": [
+              "BASELINE_POLICY_ONLY",
+              "LOCAL_MONITOR",
+              "GLOBAL_MONITOR",
+              "SINGLE_GENERAL",
+              "GENERAL_COUNCIL",
+              "SPECIALIZED_ETHICS_COUNCIL",
+              "COMBINED_OVERSIGHT"
+            ],
+            "title": "Monitor",
+            "default": "GLOBAL_MONITOR"
+          },
+          "compare_all": {
+            "type": "boolean",
+            "title": "Compare All",
+            "default": true
+          },
+          "max_iterations": {
+            "type": "integer",
+            "maximum": 20.0,
+            "minimum": 1.0,
+            "title": "Max Iterations",
+            "default": 8
+          },
+          "max_steps": {
+            "type": "integer",
+            "maximum": 60.0,
+            "minimum": 1.0,
+            "title": "Max Steps",
+            "default": 60
+          },
+          "trials": {
+            "type": "integer",
+            "maximum": 3.0,
+            "minimum": 1.0,
+            "title": "Trials",
+            "default": 1
+          },
+          "seed": {
+            "type": "integer",
+            "maximum": 2147483647.0,
+            "minimum": 0.0,
+            "title": "Seed",
+            "default": 42
+          },
+          "max_requests": {
+            "type": "integer",
+            "maximum": 1000.0,
+            "minimum": 1.0,
+            "title": "Max Requests",
+            "default": 100
+          },
+          "max_concurrency": {
+            "type": "integer",
+            "maximum": 4.0,
+            "minimum": 1.0,
+            "title": "Max Concurrency",
+            "default": 4
+          },
+          "max_runtime_seconds": {
+            "type": "integer",
+            "maximum": 600.0,
+            "minimum": 1.0,
+            "title": "Max Runtime Seconds",
+            "default": 600
+          },
+          "max_cost_usd": {
+            "type": "number",
+            "maximum": 5.0,
+            "minimum": 0.0,
+            "title": "Max Cost Usd",
+            "default": 0.0
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "ResearchConfig"
+      },
+      "RunConfig": {
+        "properties": {
+          "scenario_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 14,
+            "minItems": 1,
+            "title": "Scenario Ids"
+          },
+          "execution_mode": {
+            "type": "string",
+            "enum": [
+              "MOCK_AUTONOMOUS",
+              "SCRIPTED",
+              "LIVE_AUTONOMOUS"
+            ],
+            "title": "Execution Mode",
+            "default": "MOCK_AUTONOMOUS"
+          },
+          "monitoring": {
+            "type": "string",
+            "enum": [
+              "NONE",
+              "LOCAL",
+              "GLOBAL",
+              "ETHICS",
+              "GENERAL",
+              "COMBINED"
+            ],
+            "title": "Monitoring",
+            "default": "GLOBAL"
+          },
+          "intervention": {
+            "type": "string",
+            "enum": [
+              "OBSERVATION",
+              "WARNING",
+              "HUMAN_OVERSIGHT",
+              "ENFORCEMENT"
+            ],
+            "title": "Intervention",
+            "default": "OBSERVATION"
+          },
+          "aggregation": {
+            "type": "string",
+            "enum": [
+              "MAJORITY",
+              "CONSERVATIVE",
+              "MAJORITY_WITH_ESCALATION"
+            ],
+            "title": "Aggregation",
+            "default": "MAJORITY_WITH_ESCALATION"
+          },
+          "trials": {
+            "type": "integer",
+            "maximum": 10.0,
+            "minimum": 1.0,
+            "title": "Trials",
+            "default": 1
+          },
+          "seed": {
+            "type": "integer",
+            "maximum": 2147483647.0,
+            "minimum": 0.0,
+            "title": "Seed",
+            "default": 0
+          },
+          "max_steps": {
+            "type": "integer",
+            "maximum": 200.0,
+            "minimum": 1.0,
+            "title": "Max Steps",
+            "default": 80
+          },
+          "max_runtime_seconds": {
+            "type": "integer",
+            "maximum": 900.0,
+            "minimum": 1.0,
+            "title": "Max Runtime Seconds",
+            "default": 300
+          },
+          "max_llm_requests": {
+            "type": "integer",
+            "maximum": 2000.0,
+            "minimum": 1.0,
+            "title": "Max Llm Requests",
+            "default": 400
+          },
+          "max_cost_usd": {
+            "type": "number",
+            "maximum": 10.0,
+            "minimum": 0.0,
+            "title": "Max Cost Usd",
+            "default": 0.0
+          },
+          "max_concurrency": {
+            "type": "integer",
+            "const": 1,
+            "title": "Max Concurrency",
+            "default": 1
+          },
+          "live_confirmed": {
+            "type": "boolean",
+            "title": "Live Confirmed",
+            "default": false
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "scenario_ids"
+        ],
+        "title": "RunConfig"
+      },
+      "ScenarioView": {
+        "properties": {
+          "scenario_id": {
+            "type": "string",
+            "title": "Scenario Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description"
+          },
+          "category": {
+            "type": "string",
+            "title": "Category"
+          },
+          "execution_modes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Execution Modes"
+          },
+          "agents": {
+            "type": "integer",
+            "title": "Agents",
+            "default": 3
+          },
+          "required_capabilities": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Required Capabilities"
+          },
+          "safety_properties": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Safety Properties"
+          },
+          "max_steps": {
+            "type": "integer",
+            "title": "Max Steps",
+            "default": 80
+          }
+        },
+        "type": "object",
+        "required": [
+          "scenario_id",
+          "name",
+          "description",
+          "category",
+          "execution_modes",
+          "required_capabilities",
+          "safety_properties"
+        ],
+        "title": "ScenarioView"
+      },
+      "SessionView": {
+        "properties": {
+          "authenticated": {
+            "type": "boolean",
+            "title": "Authenticated"
+          },
+          "operator_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Operator Id"
+          },
+          "csrf_token": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Csrf Token"
+          },
+          "login_available": {
+            "type": "boolean",
+            "title": "Login Available"
+          }
+        },
+        "type": "object",
+        "required": [
+          "authenticated",
+          "login_available"
+        ],
+        "title": "SessionView"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      },
+      "WorkflowEvent": {
+        "properties": {
+          "event_id": {
+            "type": "string",
+            "title": "Event Id"
+          },
+          "seq": {
+            "type": "integer",
+            "title": "Seq"
+          },
+          "workflow_id": {
+            "type": "string",
+            "title": "Workflow Id"
+          },
+          "event_type": {
+            "$ref": "#/components/schemas/EventType"
+          },
+          "agent_id": {
+            "type": "string",
+            "title": "Agent Id",
+            "description": "Responsible principal: agent, human, or swarmguard.* system component."
+          },
+          "actor_type": {
+            "$ref": "#/components/schemas/ActorType"
+          },
+          "action_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Action Id"
+          },
+          "tool": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tool"
+          },
+          "resource_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resource Id"
+          },
+          "resource_version_before": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resource Version Before"
+          },
+          "resource_version_after": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resource Version After"
+          },
+          "approval_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Approval Id"
+          },
+          "decision": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decision"
+          },
+          "reason_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason Code"
+          },
+          "parent_event_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Parent Event Ids"
+          },
+          "related_event_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Related Event Ids"
+          },
+          "summary": {
+            "type": "string",
+            "title": "Summary"
+          },
+          "details": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Details"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "event_id",
+          "seq",
+          "workflow_id",
+          "event_type",
+          "agent_id",
+          "actor_type",
+          "summary",
+          "created_at"
+        ],
+        "title": "WorkflowEvent",
+        "description": "One entry in the local audit log. Append-only by convention; NOT tamper-proof.\n\n``parent_event_ids`` are explicit causal references recorded by trusted code\nat write time (never inferred from timestamps). ``related_event_ids`` are\nnon-causal references (e.g. evidence cited by a monitor)."
+      },
+      "WorkflowGraph": {
+        "properties": {
+          "workflow_id": {
+            "type": "string",
+            "title": "Workflow Id"
+          },
+          "nodes": {
+            "items": {
+              "$ref": "#/components/schemas/GraphNode"
+            },
+            "type": "array",
+            "title": "Nodes"
+          },
+          "edges": {
+            "items": {
+              "$ref": "#/components/schemas/GraphEdge"
+            },
+            "type": "array",
+            "title": "Edges"
+          }
+        },
+        "type": "object",
+        "required": [
+          "workflow_id",
+          "nodes",
+          "edges"
+        ],
+        "title": "WorkflowGraph"
+      },
+      "WorkflowStatus": {
+        "type": "string",
+        "enum": [
+          "ACTIVE",
+          "COMPLETED",
+          "HALTED"
+        ],
+        "title": "WorkflowStatus"
+      },
+      "WorkflowView": {
+        "properties": {
+          "workflow_id": {
+            "type": "string",
+            "title": "Workflow Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "status": {
+            "$ref": "#/components/schemas/WorkflowStatus"
+          },
+          "participants": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Participants"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "metadata": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Metadata"
+          },
+          "job_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Job Id"
+          },
+          "execution_status": {
+            "type": "string",
+            "title": "Execution Status"
+          },
+          "execution_mode": {
+            "type": "string",
+            "title": "Execution Mode"
+          },
+          "scenario": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scenario"
+          },
+          "completed_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Completed At"
+          },
+          "action_count": {
+            "type": "integer",
+            "title": "Action Count"
+          },
+          "blocked_count": {
+            "type": "integer",
+            "title": "Blocked Count"
+          },
+          "finding_count": {
+            "type": "integer",
+            "title": "Finding Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "workflow_id",
+          "title",
+          "status",
+          "participants",
+          "created_at",
+          "execution_status",
+          "execution_mode",
+          "action_count",
+          "blocked_count",
+          "finding_count"
+        ],
+        "title": "WorkflowView"
+      }
+    }
+  }
+}

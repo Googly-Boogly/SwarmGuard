@@ -55,3 +55,27 @@ Read `docs/ARCHITECTURE.md` and `docs/THREAT_MODEL.md` before touching `swarmgua
 - Use the injected `Clock` (no `datetime.now()` in trusted code) and `Database.next_id` (no `uuid4`) so runs stay reproducible.
 - Before finishing: `python -m pytest -v` **and** `python demo.py` (must print `Acceptance check: PASS`) **and** `python demo_stage2.py` (must print `Stage 2 demonstration check: PASS`) **and** `python demo_stage3.py --provider mock` (must print `Stage 3 demonstration check: PASS`).
 - Hackathon-period work must be recorded separately from `PRE_HACKATHON_WORK.md`.
+
+
+## Stage 4.5 — browser control boundary
+
+- Keep `swarmguard.api.create_app` and `main:app` GET-only and read-only. The console is a separate entry point (`console_main:app`, `swarmguard/console/`), with read queries using `mode=ro`.
+- Browser mutations require a server-side operator session, exact local Origin, JSON, and a session CSRF token. Never accept an approver identity, trusted agent credential, raw SQL, tool invocation, arbitrary command, or policy change from the browser.
+- Operator provisioning is a local hidden-input CLI; persist only a salted password hash. Session cookies are HttpOnly, Secure by default, and SameSite=Strict. No credentials in localStorage or API responses.
+- Approval grants must revalidate pending state, workflow/runtime ownership, request expiry, resource version, protected parameters, and the reviewed operation digest before invoking the existing ApproverCredential-bearing service. Historical/interrupted requests are read-only.
+- Jobs have strict immutable configurations, bounded worker/queue/request/runtime/step limits, persistent CAS progress/snapshots, explicit cancellation, and no automatic restart recovery. Run one Uvicorn worker only.
+- Browser live execution stays disabled until an end-to-end provider/cost path is implemented and tested; explicit confirmation alone must not unlock it.
+- Preserve graph causal flags and event IDs/sequences. WebSocket delivery is authenticated; cursor polling recovers authoritative database events. Never infer causal edges from chronology.
+- Console mock outputs remain synthetic. Failed/unrun trials stay visible; undefined metrics stay null. Freeze predictions before joining labels. Do not change original result files.
+- After console changes, run frontend `npm run lint`, `npm test`, `npm run build`, and isolated Playwright tests, in addition to the existing Python suite and three required demonstrations.
+
+## Stage 5 — adaptive research integrity
+
+- Generated definitions are data only. Validate against the fixed template/partition allowlist before every execution. Never accept policies, credentials, approvals, executable code or new tool definitions from a candidate.
+- Adaptive search uses only `adaptive_search`. Never feed held-out labels or feedback to generation or selection. Inherited public held-out fixtures do not constitute an independent blind benchmark.
+- Freeze predictions before reading trusted ground truth. Record monitor detection, gateway authorization, actual prohibited outcomes, and legitimate completion separately. Failed assessments are unknown, not safe.
+- Robustness transforms modify copied ObservationBuilder contexts only. Persist exact inputs and changes, and preserve mandatory proposal/approval/invariant evidence and cutoff checks.
+- New detection rules apply to all windows through RiskAnalyzer. Bump RULESET_VERSION and rerun when changing them. Do not relabel old results or claim improved generalization from tuned fixtures.
+- Stage 5 browser jobs share the console execution semaphore and existing authentication/Origin/CSRF rules. Browser live mode stays disabled. Paid CLI runs require explicit opt-in, positive priced budgets and request caps. Never resume research automatically after restart.
+- Stage 5 exports are exclusive writes. Preserve CAS progress versions, actors, trajectories, failure records, source fingerprints and manifests. Mock council outputs remain synthetic; unknown tokens stay unavailable.
+- Before finishing Stage 5 changes, also run `python demo_stage5.py --provider mock`, `python run_adaptive_evaluation.py --provider mock`, and `python run_benchmark.py --provider mock`, plus the existing backend, frontend and browser checks.

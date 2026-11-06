@@ -16,6 +16,7 @@ class Decision(StrEnum):
 
 
 class ReasonCode(StrEnum):
+    EXECUTION_LIMIT_EXCEEDED = "EXECUTION_LIMIT_EXCEEDED"
     """Stable reason codes: part of the audit format. Add codes; never rename existing ones."""
 
     AUTHORIZED = "AUTHORIZED"

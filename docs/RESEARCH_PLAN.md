@@ -91,3 +91,13 @@ Labels will be fixed before any monitor runs. Prompts, model IDs, seeds and vers
 - **LLM non-determinism**: report variance over repeated runs.
 - **Prompt injection** through agent-authored workflow text.
 - **Deterministic rules** cover only modeled tools. RQ3 claims will be scoped accordingly.
+
+## Stage 5: adaptive adversarial evaluation
+
+Implemented questions and controls are specified in [STAGE5_RESEARCH_DESIGN.md](STAGE5_RESEARCH_DESIGN.md).
+The central question is whether adaptive synthetic scenario variations reveal monitoring failures.
+Comparisons cover configuration, context availability, ethical specialization, swarm size, and
+trusted intervention safety/utility. Mock outcomes validate infrastructure only. Per-framework
+errors and correlated failures are measured rather than assuming independence. Public inherited
+held-out cases remain operationally separated, but do not provide a new blind test. Independently
+authored sealed scenarios and explicitly authorized repeated live trials remain necessary research.
