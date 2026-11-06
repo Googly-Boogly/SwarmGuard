@@ -265,7 +265,7 @@ uvicorn main:app --host 127.0.0.1 --port 8000     # http://127.0.0.1:8000/docs (
 
 The ethics endpoints only read recorded results. No GET request can trigger an LLM call.
 
-The API opens SQLite read-only and accepts no SQL. It has no endpoints for identities, approvals, policy or tool execution. Use `SWARMGUARD_DB_PATH` to point it at another database. Docker: `docker compose up --build` (see the compose file).
+The API opens SQLite read-only and accepts no SQL. It has no endpoints for identities, approvals, policy or tool execution. Use `SWARMGUARD_DB_PATH` to point it at another database. Docker: `docker compose up --build` serves the read-only API on http://127.0.0.1:7676 and the research console on http://127.0.0.1:8080 (provision a login with `docker compose run --rm console python setup_console_operator.py`, then `docker compose restart console`).
 
 ## Understanding authorization decisions
 
@@ -352,3 +352,54 @@ separated fixtures, not an independently authored blind benchmark. Live Stage 5 
 Browser live execution remains disabled. See [research design](docs/STAGE5_RESEARCH_DESIGN.md),
 [benchmark methodology](docs/BENCHMARK_METHODOLOGY.md), [adversarial threat model](docs/ADVERSARIAL_THREAT_MODEL.md),
 [reproducibility](docs/REPRODUCIBILITY.md), and the [measured verification record](docs/STAGE5_VERIFICATION.md).
+
+## Stage 6 — framework integrations and continuous safety evaluation
+
+External agent frameworks can propose operations to the **unchanged** SwarmGuard gateway through
+gateway-bound tools: a custom Python reference adapter, CrewAI 1.15 (`BaseTool` in a real
+`Agent`/`Task`/`Crew` loop), LangGraph 1.2 (`StructuredTool` in a prebuilt `ToolNode`) and AutoGen
+Core 0.7 (`FunctionTool` in a `ToolAgent`). Framework events are normalized into canonical events;
+framework-reported events are untrusted observations, separate from gateway-verified decisions.
+A regression engine compares an application version against an approved baseline under a frozen
+policy and returns CI exit codes.
+
+```bash
+pip install -e ".[test,integrations]"          # CrewAI needs Python < 3.14
+python demo_stage6.py --framework custom        # also: crewai | langgraph | autogen
+python examples/custom_python/example.py        # also crewai_example, langgraph_example, autogen_example
+python run_framework_evaluation.py --provider mock [--overhead]
+python run_regression.py --baseline .ci/swarmguard-baseline.json --suite swarmguard_core --provider mock
+python run_regression.py --profile redirected --baseline .ci/swarmguard-baseline.json   # controlled regression → exit 1
+```
+
+Exit codes: 0 pass, 1 threshold/mandatory violation, 2 incomplete/error, 3 invalid configuration.
+Console pages: `/integrations`, `/integrations/:id`, `/runtime`, `/regression`, `/regression/:runId`.
+
+Enforcement covers only tools routed through SwarmGuard, in-process. Importing the SDK does not
+secure an application, and the benchmark "models" are deterministic scripts (framework dispatch is real;
+live LLM behaviour is untested). See the [integration guide](docs/INTEGRATION_GUIDE.md),
+[runtime security](docs/RUNTIME_SECURITY.md), [continuous evaluation](docs/CONTINUOUS_EVALUATION.md),
+and the [CrewAI](docs/CREWAI_INTEGRATION.md), [LangGraph](docs/LANGGRAPH_INTEGRATION.md) and
+[AutoGen](docs/AUTOGEN_INTEGRATION.md) notes.
+
+## Stage 7 — service separation, zero-trust agent access and hardened deployment
+
+An untrusted agent runtime now reaches protected operations only through an authenticated remote gateway
+(`POST /api/v1/capabilities/execute`, EdDSA agent credentials resolved to server-side bindings). Protected
+tools run in a separate executor service that accepts nothing but short-lived gateway-signed grants bound to
+durable authorization records (idempotent, at-most-once, UNKNOWN on ambiguity). The audit log is hash-chained
+with external checkpoints; PostgreSQL is supported with least-privilege roles; the console gains operator
+roles, approval revocation, an emergency stop and security-operations pages. A hardened Docker Compose stack
+separates the agent network from the executor and database.
+
+```bash
+python demo_stage7.py                                   # separate local processes; prints Stage 7 demonstration check
+python verify_stage7.py [--deployment]                  # + container isolation checks (Docker)
+python deployment/scripts/verify_deployment.py          # build, start, verify and tear down the hardened stack
+python verify_stage7.py --audit --database stage7.db    # audit chain verification
+```
+
+This is a hardened research deployment, **not** a production-secure system. Read
+[security architecture](docs/STAGE7_SECURITY_ARCHITECTURE.md), [deployment](docs/DEPLOYMENT.md),
+[security operations](docs/SECURITY_OPERATIONS.md), [incident response](docs/INCIDENT_RESPONSE.md) and the
+[production-readiness assessment](docs/PRODUCTION_READINESS.md).

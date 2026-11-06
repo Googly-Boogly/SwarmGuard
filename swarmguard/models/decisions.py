@@ -63,6 +63,20 @@ class ReasonCode(StrEnum):
     INVALID_RECIPIENT_AGENT = "INVALID_RECIPIENT_AGENT"
     DELEGATION_EXCEEDS_PERMISSIONS = "DELEGATION_EXCEEDS_PERMISSIONS"
     RECIPIENT_OUT_OF_WORKFLOW_SCOPE = "RECIPIENT_OUT_OF_WORKFLOW_SCOPE"
+    # Stage 7: service boundary, operational controls and distributed execution
+    APPROVAL_REVOKED = "APPROVAL_REVOKED"
+    AUTHENTICATION_FAILED = "AUTHENTICATION_FAILED"
+    CREDENTIAL_REVOKED = "CREDENTIAL_REVOKED"
+    AGENT_NOT_BOUND = "AGENT_NOT_BOUND"
+    CAPABILITY_NOT_GRANTED = "CAPABILITY_NOT_GRANTED"
+    CAPABILITY_DISABLED = "CAPABILITY_DISABLED"
+    EMERGENCY_STOP_ACTIVE = "EMERGENCY_STOP_ACTIVE"
+    IDEMPOTENCY_KEY_REUSED = "IDEMPOTENCY_KEY_REUSED"
+    RATE_LIMITED = "RATE_LIMITED"
+    AUTHORIZATION_SERVICE_UNAVAILABLE = "AUTHORIZATION_SERVICE_UNAVAILABLE"
+    EXECUTOR_UNAVAILABLE = "EXECUTOR_UNAVAILABLE"
+    EXECUTION_OUTCOME_UNKNOWN = "EXECUTION_OUTCOME_UNKNOWN"
+    EXECUTION_GRANT_INVALID = "EXECUTION_GRANT_INVALID"
 
 
 class PolicyDecision(BaseModel):
@@ -118,3 +132,6 @@ class GatewayResponse(BaseModel):
     details: dict[str, Any] = Field(default_factory=dict)
     executed: bool
     execution_result: dict[str, Any] | None = None
+    # Stage 7: distributed execution state (PENDING..UNKNOWN). ``executed`` stays False when UNKNOWN;
+    # callers must not treat ``executed=False`` with ``execution_state='UNKNOWN'`` as "did not run".
+    execution_state: str | None = None

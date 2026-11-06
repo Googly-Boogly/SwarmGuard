@@ -53,3 +53,6 @@ frontend/playwright-report/
 frontend/test-results/
 
 frontend/*.tsbuildinfo
+
+# Stage 7 generated deployment secrets and checkpoints (never commit)
+deployment/secrets/

@@ -31,6 +31,7 @@ class ApprovalStatus(StrEnum):
     EXPIRED = "EXPIRED"
     INVALIDATED = "INVALIDATED"
     CONSUMED = "CONSUMED"
+    REVOKED = "REVOKED"  # Stage 7: withdrawn by a trusted operator before execution
 
 
 def canonical_json(value: Any) -> str:

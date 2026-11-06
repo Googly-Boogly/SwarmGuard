@@ -78,6 +78,9 @@ class SimulatedHumanOperator:
     def reject(self, approval_id: str, reason: str) -> ApprovalRecord:
         return self._approvals.reject(approval_id, self._credential, reason=reason)
 
+    def revoke(self, approval_id: str, reason: str) -> ApprovalRecord:
+        return self._approvals.revoke(approval_id, self._credential, reason=reason)
+
 
 class SwarmSimulator:
     def __init__(

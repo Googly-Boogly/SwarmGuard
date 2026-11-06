@@ -6,6 +6,12 @@ websockets>=14
 # Stage 3: LLM provider (live mode only; mock mode makes no requests) and optional .env loading
 openai>=2.30,<4
 python-dotenv>=1.0
+# Stage 7: signed service credentials and the internal gateway->executor channel
+pyjwt[crypto]>=2.10,<3
+cryptography>=44
+httpx>=0.27
+# Stage 7 PostgreSQL deployments only (optional for SQLite development)
+psycopg[binary]>=3.2,<4
 
 # Testing (httpx is required by fastapi.testclient)
 pytest>=8

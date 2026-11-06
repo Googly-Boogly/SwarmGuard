@@ -1,0 +1,173 @@
+# SwarmGuard Stage 7 hardened local deployment (disposable; synthetic data; mock tools only).
+#
+#   python deployment/scripts/verify_deployment.py        # generates secrets, builds, starts, verifies, tears down
+#   docker compose -f deployment/compose/compose.hardened.yml up -d --build   (paths resolve from this directory)
+#
+# Trust zones / networks (all internal except "edge"):
+#   edge      : frontend <-> api            (only network with a published port, bound to 127.0.0.1)
+#   agent_net : agent-runtime <-> gateway   (the ONLY route the untrusted runtime has)
+#   exec_net  : gateway <-> executor        (protected execution channel)
+#   data      : database <-> migrate, gateway, executor, api (never the agent)
+name: swarmguard-stage7
+
+x-hardening: &hardening
+  read_only: true
+  tmpfs: ["/tmp:size=16m,mode=1777"]
+  cap_drop: [ALL]
+  security_opt: ["no-new-privileges:true"]
+  pids_limit: 128
+  cpus: "1.0"
+  mem_limit: 512m
+  restart: "no"
+
+x-service-env: &service-env
+  SWARMGUARD_APPROVER_IDS: operator_alice
+  SWARMGUARD_APPROVAL_KEY_FILE: /run/secrets/approval_signing_key
+  SWARMGUARD_HEARTBEAT_SECONDS: "5"
+  SWARMGUARD_MIGRATE: "false"
+  OTEL_SDK_DISABLED: "true"
+
+x-health: &health
+  interval: 5s
+  timeout: 3s
+  retries: 12
+  start_period: 5s
+
+services:
+  database:
+    image: postgres:17.6-alpine3.22@sha256:ef257d85f76e48da1c64832459b59fcaba1a4dac97bf5d7450c77753542eee94
+    read_only: true
+    tmpfs: ["/tmp:size=16m", "/var/run/postgresql:size=1m"]
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    cap_add: [CHOWN, DAC_OVERRIDE, FOWNER, SETGID, SETUID]   # entrypoint drops to the postgres user
+    pids_limit: 256
+    cpus: "1.0"
+    mem_limit: 512m
+    environment:
+      POSTGRES_USER: swarmguard_owner
+      POSTGRES_DB: swarmguard
+      POSTGRES_PASSWORD_FILE: /run/secrets/db_owner_password
+      POSTGRES_INITDB_ARGS: "--auth-host=scram-sha-256"
+    secrets: [db_owner_password, db_gateway_password, db_executor_password, db_control_password]
+    volumes:
+      - ../postgres/init-roles.sh:/docker-entrypoint-initdb.d/10-roles.sh:ro
+      - pgdata:/var/lib/postgresql/data
+    networks: [data]
+    healthcheck:
+      <<: *health
+      test: ["CMD", "pg_isready", "-U", "swarmguard_owner", "-d", "swarmguard"]
+
+  migrate:
+    <<: *hardening
+    build: {context: ../.., dockerfile: deployment/docker/Dockerfile.backend}
+    image: swarmguard-backend:stage7
+    depends_on: {database: {condition: service_healthy}}
+    environment:
+      <<: *service-env
+      SWARMGUARD_DB_PASSWORD_FILE: /run/secrets/db_owner_password
+    secrets: [db_owner_password, approval_signing_key]
+    command: ["sh", "-c", "python stage7_cli.py migrate --database postgresql://swarmguard_owner@database:5432/swarmguard --grants && python stage7_cli.py bootstrap --database postgresql://swarmguard_owner@database:5432/swarmguard --approval-key /run/secrets/approval_signing_key --approvers operator_alice"]
+    networks: [data]
+
+  executor:
+    <<: *hardening
+    image: swarmguard-backend:stage7
+    depends_on: {migrate: {condition: service_completed_successfully}}
+    environment:
+      <<: *service-env
+      SWARMGUARD_DATABASE_URL: postgresql://sg_executor@database:5432/swarmguard
+      SWARMGUARD_DB_PASSWORD_FILE: /run/secrets/db_executor_password
+      SWARMGUARD_GRANT_PUBLIC_KEY_FILE: /run/secrets/executor_grant_pub
+    secrets: [db_executor_password, executor_grant_pub, approval_signing_key]
+    command: ["uvicorn", "swarmguard_services.executor_main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1", "--no-server-header"]
+    networks: [exec_net, data]
+    healthcheck:
+      <<: *health
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/health/ready', timeout=2).status == 200 else 1)"]
+
+  gateway:
+    <<: *hardening
+    image: swarmguard-backend:stage7
+    depends_on: {executor: {condition: service_healthy}}
+    environment:
+      <<: *service-env
+      SWARMGUARD_DATABASE_URL: postgresql://sg_gateway@database:5432/swarmguard
+      SWARMGUARD_DB_PASSWORD_FILE: /run/secrets/db_gateway_password
+      SWARMGUARD_IDENTITY_PUBLIC_KEY_FILE: /run/secrets/identity_issuer_pub
+      SWARMGUARD_GRANT_PRIVATE_KEY_FILE: /run/secrets/executor_grant_key
+      SWARMGUARD_EXECUTOR_URL: http://executor:8000
+    secrets: [db_gateway_password, identity_issuer_pub, executor_grant_key, approval_signing_key]
+    command: ["uvicorn", "swarmguard_services.gateway_main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1", "--no-server-header"]
+    networks: [agent_net, exec_net, data]
+    healthcheck:
+      <<: *health
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/health/ready', timeout=2).status == 200 else 1)"]
+
+  api:
+    <<: *hardening
+    image: swarmguard-backend:stage7
+    depends_on: {migrate: {condition: service_completed_successfully}}
+    environment:
+      <<: *service-env
+      SWARMGUARD_DATABASE_URL: postgresql://sg_control@database:5432/swarmguard
+      SWARMGUARD_DB_PASSWORD_FILE: /run/secrets/db_control_password
+      SWARMGUARD_OPERATORS_FILE: /run/secrets/operators_json
+      SWARMGUARD_CHECKPOINT_DIR: /checkpoints
+      SWARMGUARD_ALLOWED_ORIGINS: http://localhost:8080,http://127.0.0.1:8080
+    secrets: [db_control_password, approval_signing_key, operators_json]
+    volumes: ["checkpoints:/checkpoints"]
+    command: ["uvicorn", "swarmguard_services.control_main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1", "--no-server-header"]
+    networks: [edge, data]
+    healthcheck:
+      <<: *health
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/api/health', timeout=2).status == 200 else 1)"]
+
+  frontend:
+    <<: *hardening
+    build: {context: ../.., dockerfile: deployment/docker/Dockerfile.frontend}
+    image: swarmguard-frontend:stage7
+    depends_on: {api: {condition: service_healthy}}
+    tmpfs: ["/tmp:size=16m", "/config:size=1m,uid=10003", "/data:size=1m,uid=10003"]
+    environment: {XDG_CONFIG_HOME: /config, XDG_DATA_HOME: /data}
+    ports: ["127.0.0.1:8080:8080"]
+    networks: [edge]
+    healthcheck:
+      <<: *health
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/"]
+
+  agent-runtime:
+    <<: *hardening
+    build: {context: ../.., dockerfile: deployment/docker/Dockerfile.agent}
+    image: swarmguard-agent:stage7
+    profiles: ["agent"]
+    depends_on: {gateway: {condition: service_healthy}}
+    environment:
+      SWARMGUARD_GATEWAY_URL: http://gateway:8000
+      SWARMGUARD_AGENT_TOKEN_FILE: /run/secrets/agent_token
+      SWARMGUARD_WORKFLOW_ID: wf_remote
+      SWARMGUARD_EXECUTOR_PROBE_URL: http://executor:8000
+    secrets: [agent_token]
+    networks: [agent_net]
+
+networks:
+  edge: {}
+  agent_net: {internal: true}
+  exec_net: {internal: true}
+  data: {internal: true}
+
+volumes:
+  pgdata: {}
+  checkpoints: {}
+
+secrets:
+  db_owner_password: {file: ../secrets/db_owner.password}
+  db_gateway_password: {file: ../secrets/db_gateway.password}
+  db_executor_password: {file: ../secrets/db_executor.password}
+  db_control_password: {file: ../secrets/db_control.password}
+  approval_signing_key: {file: ../secrets/approval_signing.key}
+  identity_issuer_pub: {file: ../secrets/identity_issuer.pub}
+  executor_grant_key: {file: ../secrets/executor_grant.key}
+  executor_grant_pub: {file: ../secrets/executor_grant.pub}
+  operators_json: {file: ../secrets/operators.json}
+  agent_token: {file: ../secrets/agent/token}

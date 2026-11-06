@@ -79,3 +79,26 @@ Read `docs/ARCHITECTURE.md` and `docs/THREAT_MODEL.md` before touching `swarmgua
 - Stage 5 browser jobs share the console execution semaphore and existing authentication/Origin/CSRF rules. Browser live mode stays disabled. Paid CLI runs require explicit opt-in, positive priced budgets and request caps. Never resume research automatically after restart.
 - Stage 5 exports are exclusive writes. Preserve CAS progress versions, actors, trajectories, failure records, source fingerprints and manifests. Mock council outputs remain synthetic; unknown tokens stay unavailable.
 - Before finishing Stage 5 changes, also run `python demo_stage5.py --provider mock`, `python run_adaptive_evaluation.py --provider mock`, and `python run_benchmark.py --provider mock`, plus the existing backend, frontend and browser checks.
+
+## Stage 6 — framework integrations and regression gates
+
+- Framework adapters add **no** authorization logic and no execution path. Every protected call goes through a gateway-bound framework tool → `SwarmGuardClient` → `IntegrationRuntime` → the existing gateway. Never give a framework agent an executor, simulator, approval manager, `LocalSwarmGuard`, `BaselineManager` authority or an unwrapped protected function.
+- Identity comes from host registration of a host-owned object (`IdentityMapping`, object identity). Never authenticate from names, roles, `agent_id` fields or native framework metadata. Native events that cannot be attributed to a registered object are dropped and counted.
+- Framework/native events are `FRAMEWORK_REPORTED` observations. Never treat them as execution proof, approval evidence or causal links. Only gateway decisions are `GATEWAY_VERIFIED`.
+- Observability-only adapters must declare interception/wrapping/approval capabilities `false` and refuse execution. Never describe hook registration as a security boundary.
+- Use public framework APIs only, and record tested versions in the registry and docs. Version families outside `SUPPORTED` stay `UNSUPPORTED`. Optional frameworks must never be required for the core suite.
+- `RegressionPolicy.maximum_prohibited_outcomes` is fixed at 0 and the policy version is a literal. Never make the mandatory invariant configurable. Incomplete/incomparable evaluations are INCONCLUSIVE (exit 2), never passing. Changing thresholds or rules means bumping the policy version.
+- Only trusted principals designate baselines. Never hand-edit `.ci/swarmguard-baseline.json`; regenerate it with `run_regression.py --create-baseline`.
+- Before finishing Stage 6 changes, also run `python demo_stage6.py --framework <each available>`, `python run_framework_evaluation.py --provider mock`, `python run_regression.py --provider mock --baseline .ci/swarmguard-baseline.json`, the `examples/`, and `npx playwright test e2e/stage6.spec.ts` (set `SWARMGUARD_E2E_PYTHON` to an interpreter with the frameworks installed).
+
+## Stage 7 — service separation and production hardening
+
+- The remote path is `agent-runtime → POST /api/v1/capabilities/execute (gateway) → CapabilityGateway → RemoteExecutionBackend → executor`. Never add an agent-reachable route to the executor, a second execution path, or an executor endpoint that accepts anything but a gateway-signed grant bound to an `AUTHORIZED` operation row.
+- Rule 5 still holds for `swarmguard/`: no network imports. Network code lives only in `swarmguard_providers/` (LLM), `swarmguard_services/` (internal gateway→executor HTTP channel and uvicorn entry points) and `swarmguard_agent/` (untrusted client; imports nothing from `swarmguard`). None of them may import SMTP/email modules (AST tests).
+- Agent identity comes only from a verified EdDSA credential plus the server-side `agent_bindings` row. Never read identity, role, workflows or capabilities from request bodies or token claims beyond `sub`/`rt`. Approver IDs must never be agent IDs.
+- Protected operations are at-most-once. Never retry an operation whose state is `EXECUTING` or `UNKNOWN`, never report `UNKNOWN` as "not executed", and only conclude `FAILED` through a successful CAS from `AUTHORIZED`. Recovery never re-executes.
+- Fail closed: if mandatory authorization state cannot be read or written, return `AUTHORIZATION_SERVICE_UNAVAILABLE` and execute nothing.
+- The audit chain is append-only: no UPDATE/DELETE methods on `AuditChainRepository`, and no service DB role may update or delete audit tables. Do not claim tamper-proofing; it is tamper-evident relative to external checkpoints.
+- Console roles: every mutation names its role; no role implies another; the browser never supplies identity, role or approver. Sensitive actions need a reason and explicit confirmation. The hardened control service runs with `inprocess_execution=False`.
+- Secrets: files only (Docker secrets / `*_FILE` variables), never in URLs, images, logs, events, metrics or agent containers. The identity issuer private key is host-only.
+- Before finishing Stage 7 changes also run `python demo_stage7.py`, `python verify_stage7.py`, and (with Docker) `python deployment/scripts/verify_deployment.py`; run `tests/test_postgres_backend.py` with `SWARMGUARD_TEST_POSTGRES_URL` pointing at a disposable loopback server.

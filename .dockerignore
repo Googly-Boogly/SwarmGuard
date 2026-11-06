@@ -13,3 +13,11 @@ venv
 Dockerfile
 docker-compose.yml
 .dockerignore
+# Never bake local secrets, research outputs or host build artifacts into images
+.console
+deployment/secrets
+.venv-stage6
+results
+frontend/node_modules
+frontend/dist
+frontend/test-results

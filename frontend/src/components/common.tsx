@@ -6,9 +6,9 @@ import { Dialog } from './ui/dialog'
 import { date, short } from '../lib/utils'
 import { useApi, type Decision, type Event, type Workflow, type WorkflowRecords } from '../lib/api/client'
 export function Badge({ value }: { value?: string | null }) {
- const status = value ?? 'UNKNOWN'; const positive = ['ALLOW', 'COMPLETED', 'APPROVED', 'CONNECTED'].includes(status)
- const danger = ['BLOCK', 'FAILED', 'REJECTED', 'CRITICAL'].includes(status)
- const warn = ['ESCALATE', 'WAITING_APPROVAL', 'PAUSED', 'PENDING', 'HIGH'].includes(status)
+ const status = value ?? 'UNKNOWN'; const positive = ['ALLOW', 'COMPLETED', 'APPROVED', 'CONNECTED', 'NO_REGRESSION_DETECTED', 'IMPROVEMENT_OBSERVED'].includes(status)
+ const danger = ['BLOCK', 'FAILED', 'REJECTED', 'CRITICAL', 'ERROR', 'TIMED_OUT', 'CONFIRMED_THRESHOLD_VIOLATION'].includes(status)
+ const warn = ['ESCALATE', 'WAITING_APPROVAL', 'PAUSED', 'PENDING', 'HIGH', 'POSSIBLE_REGRESSION', 'INCONCLUSIVE', 'UNSUPPORTED'].includes(status)
  const Icon = positive ? CheckCircle2 : danger ? XCircle : warn ? ShieldAlert : Circle
  return <span className={`badge ${positive ? 'positive' : danger ? 'danger' : warn ? 'warning' : 'neutral'}`}><Icon size={12}/>{status.replaceAll('_', ' ')}</span>
 }

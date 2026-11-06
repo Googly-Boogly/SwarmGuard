@@ -1,0 +1,2 @@
+# The untrusted agent runtime needs only an HTTP client.
+httpx==0.28.1

@@ -144,3 +144,25 @@ Detailed label-bearing research reads require a researcher session; no simulated
 or database access. Research jobs share one worker, have a bounded queue and never resume after
 restart. Accepted controls, rejected POSTs, CAS progress and candidate records are audited. See
 ADVERSARIAL_THREAT_MODEL.md for capabilities, assumptions and limitations.
+
+## Stage 6: framework integration threats
+
+| Threat | Mitigation | Residual |
+|---|---|---|
+| Framework metadata / LLM names impersonate an agent | object-identity registration; strict `ToolInvocation`; native events attributed only to registered objects | in-process hostile code can reach host objects |
+| Alternate tool path bypasses the gateway | adapters give agents only the gateway tool (CrewAI registration replaces `agent.tools`; ToolNode/ToolAgent hold one tool); unknown tool names refused by the framework and the gateway | applications can still add other tools; not controlled |
+| Framework cache/retry replays a protected call | `tool_call_id` → deterministic gateway `request_id` (replay BLOCK); CrewAI cache disabled | — |
+| Hook-only integration presented as enforcement | OBSERVABILITY mode declares no interception and refuses execution | — |
+| Forged/foreign approvals via framework | unchanged ApprovalManager binding (workflow, tool, params, resource, version, expiry); tested across workflows | — |
+| Framework exceptions escape fail-closed paths | AutoGen `BaseException` tool errors converted; missing tool result → error, nothing assumed executed | — |
+| Regression gate weakened | mandatory invariant and policy version fixed; incomplete runs exit 2; baselines need host authority | local CLI users are trusted researchers |
+| Browser supplies identity/tools/policy | strict console commands; session + Origin + CSRF | single local operator account |
+
+## Stage 7: separated services
+
+Untrusted: agent runtimes (all model output and every request field), browsers. Trusted: gateway, executor,
+control service, database, host CLI. Mitigations and residual risks are listed in
+[STAGE7_SECURITY_ARCHITECTURE.md](STAGE7_SECURITY_ARCHITECTURE.md#known-bypass-risks). Key residuals: symmetric
+approval-integrity key shared by trusted services; no mTLS internally; a runtime holding several agents'
+credentials can act as any of them; a database writer can rewrite the audit chain unless external checkpoints
+are kept in a separate trust domain; single-process rate limits.

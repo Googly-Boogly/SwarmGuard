@@ -115,7 +115,7 @@ def register_research_routes(app: FastAPI, auth: OperatorAuth) -> None:
     @app.post("/api/research/benchmarks/runs", status_code=202)
     @app.post("/api/research/scaling/runs", status_code=202)
     async def start(body: ResearchConfig, request: Request) -> dict[str, Any]:
-        auth.require(request)
+        auth.require(request, "RESEARCHER")
         expected = "adaptive" if "/adversarial/" in request.url.path else (
             "benchmark" if "/benchmarks/" in request.url.path else "scaling")
         if body.kind != expected:
@@ -125,7 +125,7 @@ def register_research_routes(app: FastAPI, auth: OperatorAuth) -> None:
     @app.post("/api/research/runs/{run_id}/cancel")
     @app.post("/api/research/adversarial/runs/{run_id}/cancel")
     async def cancel(run_id: str, body: Command, request: Request) -> dict[str, bool]:
-        auth.require(request)
+        auth.require(request, "RESEARCHER")
         get(run_id)
         app.state.research.controller.cancel(run_id)
         return {"cancel_requested": True}

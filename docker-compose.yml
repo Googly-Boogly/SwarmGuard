@@ -1,10 +1,15 @@
-# SwarmGuard Stage 1 — local development stack.
+# SwarmGuard local development stack (synthetic data, mock tools, no API keys).
 #
-#   docker compose up --build            # run demo once, then serve the read-only API
+#   docker compose up --build            # run demo once, then serve the read-only API, console and frontend
 #   docker compose run --rm demo && docker compose restart api   # re-run demo (recreates the DB)
 #   docker compose --profile test run --rm tests
 #
-# API: http://127.0.0.1:8000/docs  (published on localhost only)
+# Read-only API: http://127.0.0.1:7676/docs   (published on localhost only)
+# Research console (frontend): http://127.0.0.1:8080   (proxies /api, /ws, /observe to the console backend)
+# Console login (stored only as an scrypt hash in the console-data volume, never in the image):
+#   docker compose run --rm console python setup_console_operator.py && docker compose restart console
+#
+# For the separated, zero-trust Stage 7 deployment use deployment/compose/compose.hardened.yml instead.
 
 x-hardening: &hardening
   read_only: true            # immutable container filesystem
@@ -33,9 +38,56 @@ services:
       demo:
         condition: service_completed_successfully
     ports:
-      - "127.0.0.1:8000:8000"
+      - "127.0.0.1:7676:7676"
     volumes:
       - swarmguard-data:/data:ro   # API can only read the audit log
+    restart: unless-stopped
+
+  console:
+    <<: *hardening
+    build: .
+    image: swarmguard:stage1
+    # Console backend (in-process synthetic research). Not published: reachable only through the frontend.
+    command: ["uvicorn", "console_main:app", "--host", "0.0.0.0", "--port", "7676", "--workers", "1",
+              "--ws-max-size", "16384", "--limit-concurrency", "32"]
+    environment:
+      SWARMGUARD_CONSOLE_DB: /console-data/swarmguard_console.db
+      SWARMGUARD_ALLOWED_ORIGINS: http://localhost:8080,http://127.0.0.1:8080
+      SWARMGUARD_OPERATOR_FILE: /console-data/operator.json
+    volumes:
+      - console-data:/console-data
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:7676/api/health', timeout=2).status == 200 else 1)"]
+      interval: 10s
+      timeout: 3s
+      retries: 6
+      start_period: 10s
+    restart: unless-stopped
+
+  frontend:
+    <<: *hardening
+    build:
+      context: .
+      dockerfile: deployment/docker/Dockerfile.frontend
+    image: swarmguard-frontend:local
+    depends_on:
+      console:
+        condition: service_healthy
+    environment:
+      SWARMGUARD_API_UPSTREAM: console:7676
+      XDG_CONFIG_HOME: /config
+      XDG_DATA_HOME: /data
+    tmpfs:
+      - /tmp
+      - /config:uid=10003
+      - /data:uid=10003
+    ports:
+      - "127.0.0.1:8080:8080"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/"]
+      interval: 10s
+      timeout: 3s
+      retries: 6
     restart: unless-stopped
 
   tests:
@@ -48,3 +100,4 @@ services:
 
 volumes:
   swarmguard-data:
+  console-data:

@@ -11,6 +11,7 @@ class Command(BaseModel):
 
 class Login(Command):
     password: str = Field(min_length=1, max_length=256)
+    username: str | None = Field(default=None, pattern=r"^[A-Za-z0-9_.-]{1,64}$")
 
 
 class RunConfig(Command):
@@ -85,6 +86,7 @@ class SessionView(BaseModel):
     operator_id: str | None = None
     csrf_token: str | None = None
     login_available: bool
+    roles: list[str] = Field(default_factory=list)
 
 
 class AgentView(BaseModel):

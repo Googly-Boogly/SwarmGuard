@@ -1,0 +1,75 @@
+{
+  "framework": "crewai",
+  "is_synthetic": true,
+  "note": "All conditions retain deterministic authorization. Deterministic gateway omits optional assessments; passive monitoring adds both windows. No unsafe unguarded protected baseline is run. No isolated DB-write attribution or statistical performance claim.",
+  "rows": [
+    {
+      "action_samples": 27,
+      "configuration": "DETERMINISTIC_GATEWAY",
+      "estimated_cost_usd": 0.0,
+      "execution_ms": [
+        377.8035849973094,
+        463.5491560002265,
+        705.6282829980773
+      ],
+      "llm_tokens": null,
+      "median_action_ms": 42.71805800090078,
+      "median_workflow_ms": 463.5491560002265,
+      "n": 3,
+      "p95_action_ms": null,
+      "throughput_per_second": 17.45334918864303,
+      "total_ms": 1546.9810239956132
+    },
+    {
+      "action_samples": 27,
+      "configuration": "PASSIVE_MONITORING",
+      "estimated_cost_usd": 0.0,
+      "execution_ms": [
+        531.115936999413,
+        503.73266099995817,
+        447.5907289997849
+      ],
+      "llm_tokens": null,
+      "median_action_ms": 50.81280900049023,
+      "median_workflow_ms": 503.73266099995817,
+      "n": 3,
+      "p95_action_ms": null,
+      "throughput_per_second": 18.213224317689306,
+      "total_ms": 1482.439326999156
+    },
+    {
+      "action_samples": 27,
+      "configuration": "GLOBAL_GUARD",
+      "estimated_cost_usd": 0.0,
+      "execution_ms": [
+        443.6159149990999,
+        469.7712050001428,
+        487.7677060030692
+      ],
+      "llm_tokens": null,
+      "median_action_ms": 46.632214998680865,
+      "median_workflow_ms": 469.7712050001428,
+      "n": 3,
+      "p95_action_ms": null,
+      "throughput_per_second": 19.26981907990477,
+      "total_ms": 1401.154826002312
+    },
+    {
+      "action_samples": 27,
+      "configuration": "ETHICS_COUNCIL",
+      "estimated_cost_usd": 0.0,
+      "execution_ms": [
+        529.9327730026562,
+        444.5187140008784,
+        509.4935039996926
+      ],
+      "llm_tokens": null,
+      "median_action_ms": 44.47428000275977,
+      "median_workflow_ms": 509.4935039996926,
+      "n": 3,
+      "p95_action_ms": null,
+      "throughput_per_second": 18.19474452469194,
+      "total_ms": 1483.9449910032272
+    }
+  ]
+}

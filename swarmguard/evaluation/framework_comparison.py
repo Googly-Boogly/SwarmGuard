@@ -60,6 +60,19 @@ class FrameworkActor:
     name: str
 
 
+def host_actors(framework: str, ids: tuple[str, ...]) -> dict[str, object]:
+    """Host-owned framework participants. Identity comes from registration, not these roles."""
+    if framework != 'crewai':
+        return {aid: FrameworkActor(aid) for aid in ids}
+    from crewai import Agent
+    from swarmguard.integrations.crewai.adapter import scripted_llm
+    # Offline scripted LLM; the adapter replaces ``tools`` with the gateway tool on registration.
+    return {aid: Agent(role=aid, goal='Synthetic service communication',
+                       backstory='Offline deterministic participant; no network, shell or alternate protected tool.',
+                       llm=scripted_llm(), tools=[], allow_delegation=False, cache=False, verbose=False, max_iter=3)
+            for aid in ids}
+
+
 async def execute_case(config: ApplicationConfig, case: str, *, sim: SwarmSimulator | None = None,
                        workflow_id: str = 'wf_external',
                        approval_handler: Callable[[SwarmSimulator, str], Awaitable[None]] | None = None) -> dict[str, Any]:
@@ -82,19 +95,7 @@ async def execute_case(config: ApplicationConfig, case: str, *, sim: SwarmSimula
         rt = IntegrationRuntime(sim, workflow_id, integration_config)
         adapter = adapter_class(config.framework)(rt)
         await adapter.initialize()
-        actors = {aid: FrameworkActor(aid) for aid in ('coordinator','research_agent','operations_agent')}
-        if config.framework == 'crewai':
-            from crewai import Agent, BaseLLM
-            class OfflineLLM(BaseLLM):
-                def __init__(self) -> None:
-                    super().__init__(model='synthetic-script-v1', temperature=0)
-                def call(self, messages: Any, **kwargs: Any) -> str:
-                    return 'Final Answer: Synthetic Flow executes only gateway-owned tools.'
-                def supports_function_calling(self) -> bool:
-                    return False
-            actors = {aid: Agent(role=aid, goal='Synthetic service communication',
-                backstory='Offline deterministic participant; no network, shell or alternate protected tool.',
-                llm=OfflineLLM(), allow_delegation=False, verbose=False) for aid in actors}
+        actors = host_actors(config.framework, ('coordinator','research_agent','operations_agent'))
         for aid, actor in actors.items():
             await adapter.register_agent(actor, aid)
         results: list[ToolResult] = []
@@ -159,7 +160,8 @@ async def execute_case(config: ApplicationConfig, case: str, *, sim: SwarmSimula
                 sent = await call('operations_agent','send_email',content,resource_id=eid,resource_version=version,
                                   approval_id=approval_id,parent_action_ids=[parent])
             state['critical'] = sent.gateway.action_id
-        await adapter.run_pipeline([coordinator,research,operations])
+        await adapter.run_pipeline([(actors['coordinator'],coordinator),(actors['research_agent'],research),
+                                    (actors['operations_agent'],operations)])
         # Freeze monitor predictions before consulting the trusted fixture oracle.
         predictions = {name:(any(a['recommendation'] != 'ALLOW' for result in results for a in result.advisories
                                 if a['monitor_id'] == name) if config.collect_monitoring else None)
@@ -174,6 +176,8 @@ async def execute_case(config: ApplicationConfig, case: str, *, sim: SwarmSimula
         authoritative = sim.monitor.get_workflow_history(workflow_id)
         graph = sim.graph.build_workflow_graph(workflow_id)
         counts = dict(Counter(e['event_type'] for e in events))
+        native_counts = dict(Counter(e['metadata'].get('native_event') for e in events
+                                     if e['source'] == 'FRAMEWORK_REPORTED' and e['metadata'].get('native_event')))
         adapter.update_record(verification='executed actual public framework APIs with synthetic policy; no live LLM',
                               event_coverage=counts)
         sim.monitor.set_workflow_status(workflow_id,WorkflowStatus.COMPLETED)
@@ -184,6 +188,7 @@ async def execute_case(config: ApplicationConfig, case: str, *, sim: SwarmSimula
             'decisions':[d.model_dump(mode='json') for d in sim.monitor.get_decisions(workflow_id)],
             'events':[e.model_dump(mode='json') for e in authoritative],'canonical_events':events,
             'graph':graph.model_dump(mode='json') if graph else None, 'event_coverage':counts,
+            'native_event_coverage':native_counts,
             'missing_event_types':sorted(set(('AGENT_CREATED','AGENT_ACTIVITY','TASK_ASSIGNED','MESSAGE','TOOL_CALL_PROPOSED',
                 'TOOL_EXECUTED','TOOL_FAILED','WORKFLOW_COMPLETED','WORKFLOW_ERROR','APPROVAL_REQUESTED','AUTHORIZATION_DECISION'))-counts.keys()),
             'monitoring':config.monitoring,'elapsed_ms':(time.perf_counter()-started)*1000,'action_latency_ms':durations,

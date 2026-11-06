@@ -136,6 +136,7 @@ class CapabilityGateway:
         workflow_guard: WorkflowGuard | None = None,
         context_builder: ObservationBuilder | None = None,
         max_workflow_proposals: int | None = None,
+        execution_backend: Any | None = None,
     ) -> None:
         self._db = db
         self._repos: Repositories = monitor.repos
@@ -154,6 +155,9 @@ class CapabilityGateway:
         if max_workflow_proposals is not None and (type(max_workflow_proposals) is not int or max_workflow_proposals < 1):
             raise ValueError("max_workflow_proposals must be positive")
         self._max_workflow_proposals = max_workflow_proposals
+        # Stage 7: optional out-of-process executor (``RemoteExecutionBackend``). When set, the in-process
+        # executor below is never used for execution.
+        self._execution_backend = execution_backend
         # The permit key never leaves this object; agents cannot mint permits.
         self._executor = MockToolExecutor(
             permit_key=secrets.token_bytes(32), workspace=workspace, approvals=approvals, monitor=monitor,
@@ -258,6 +262,18 @@ class CapabilityGateway:
             expected["operation_hash"] = evaluation.expected_operation_hash
 
         record = self._record_decision(request, evaluation.decision, council_report, workflow_risk)
+        if self._execution_backend is not None:
+            from swarmguard.execution.errors import ExecutionOutcomeUnknown, ExecutionRefused
+            try:
+                result = await self._execution_backend.execute(request, evaluation.params, expected)
+            except ExecutionOutcomeUnknown as exc:
+                return self._execution_unknown(request, record, exc)
+            except ExecutionRefused as exc:
+                return self._execution_failed(request, record, exc.reason, exc)
+            except Exception as exc:  # noqa: BLE001 - fail closed; backend errors before consumption never execute
+                logger.exception("remote execution error for %s", request.action_id)
+                return self._execution_failed(request, record, ReasonCode.EXECUTION_ERROR, exc)
+            return self._executed(request, record, result)
         permit = self._executor.issue_permit(request.action_id, request.tool, expected)
         try:
             result = self._executor.execute(request, evaluation.params, permit)
@@ -266,7 +282,9 @@ class CapabilityGateway:
         except Exception as exc:  # noqa: BLE001 - recorded, nothing half-done (transactions roll back)
             logger.exception("execution error for %s", request.action_id)
             return self._execution_failed(request, record, ReasonCode.EXECUTION_ERROR, exc)
+        return self._executed(request, record, result)
 
+    def _executed(self, request: ActionRequest, record: DecisionRecord, result: dict[str, Any]) -> GatewayResponse:
         self._monitor.update_decision_execution(record.decision_id, executed=True, status="COMPLETED")
         self._monitor.record_event(
             EventType.ACTION_EXECUTED, request.workflow_id, agent_id=GATEWAY_ACTOR, action_id=request.action_id,
@@ -280,7 +298,35 @@ class CapabilityGateway:
         return GatewayResponse(
             action_id=request.action_id, workflow_id=request.workflow_id, tool=request.tool, decision=Decision.ALLOW,
             reason_code=ReasonCode.AUTHORIZED, explanation=record.explanation, executed=True, execution_result=result,
+            execution_state="SUCCEEDED" if self._execution_backend is not None else None,
         )
+
+    def _execution_unknown(self, request: ActionRequest, record: DecisionRecord, exc: Exception) -> GatewayResponse:
+        """Stage 7: authorized, but the outcome cannot be established. Never retried automatically."""
+        self._monitor.update_decision_execution(record.decision_id, executed=False,
+                                                status=f"UNKNOWN:{ReasonCode.EXECUTION_OUTCOME_UNKNOWN.value}")
+        self._monitor.record_event(
+            EventType.SECURITY_ALERT, request.workflow_id, agent_id=GATEWAY_ACTOR, action_id=request.action_id,
+            tool=request.tool, resource_id=request.resource_id, approval_id=request.approval_id,
+            decision=Decision.ALLOW.value, reason_code=ReasonCode.EXECUTION_OUTCOME_UNKNOWN.value,
+            summary=f"Outcome of authorized {request.tool} ({request.action_id}) is UNKNOWN: {exc}. "
+            "Not retried; operator review required.",
+        )
+        return GatewayResponse(
+            action_id=request.action_id, workflow_id=request.workflow_id, tool=request.tool, decision=Decision.ALLOW,
+            reason_code=ReasonCode.EXECUTION_OUTCOME_UNKNOWN,
+            explanation="Authorized, but the execution outcome could not be established; it will not be retried.",
+            executed=False, execution_state="UNKNOWN",
+        )
+
+    def record_rejection(self, *, workflow_id: str, agent_id: str, tool: str, reason: ReasonCode,
+                         explanation: str) -> GatewayResponse:
+        """Stage 7: persist a BLOCK for submissions refused before reaching the policy engine
+        (authentication, binding, emergency stop, rate limits). Identifiers are sanitized."""
+        wf = workflow_id if isinstance(workflow_id, str) and re.fullmatch(ID_PATTERN, workflow_id) else UNKNOWN_WORKFLOW
+        tl = tool if isinstance(tool, str) and re.fullmatch(TOOL_NAME_PATTERN, tool) else "invalid"
+        ag = agent_id if isinstance(agent_id, str) and re.fullmatch(ID_PATTERN, agent_id) else UNAUTHENTICATED
+        return self._reject_early(self._db.next_id("action"), wf, ag, tl, reason, explanation)
 
     def _execution_failed(self, request: ActionRequest, record: DecisionRecord, code: ReasonCode,
                           exc: Exception) -> GatewayResponse:
@@ -298,6 +344,7 @@ class CapabilityGateway:
         return GatewayResponse(
             action_id=request.action_id, workflow_id=request.workflow_id, tool=request.tool, decision=Decision.BLOCK,
             reason_code=code, explanation=f"Execution aborted: {exc}", executed=False,
+            execution_state="FAILED" if self._execution_backend is not None else None,
         )
 
     async def _run_council(self, request: ActionRequest, evaluation: PolicyEvaluation) -> CouncilReport | None:

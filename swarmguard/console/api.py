@@ -15,7 +15,7 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from swarmguard.api import create_app
 from swarmguard.clock import Clock, SystemClock
-from swarmguard.console.auth import COOKIE, OPERATOR, ALLOWED_ORIGINS, OperatorAuth, load_password
+from swarmguard.console.auth import COOKIE, ALLOWED_ORIGINS, OperatorAuth, load_password
 from swarmguard.console.catalog import SCENARIOS
 from swarmguard.console.jobs import ACTIVE, JobManager, measured_results
 from swarmguard.console.models import AgentView, ApprovalDecision, JobRecord, Login, RunConfig, ScenarioView, SessionView
@@ -77,19 +77,27 @@ class Overview(BaseModel):
 def create_console_app(db_path: str | Path = "swarmguard_console.db", *,
                        operator_file: Path = Path(".console/operator.json"), encoded_password: str | None = None,
                        secure_cookie: bool = True, clock: Clock | None = None,
-                       step_delay: float = .06, code_revision: str = "unavailable") -> FastAPI:
+                       step_delay: float = .06, code_revision: str = "unavailable",
+                       accounts: dict[str, Any] | None = None, control_plane: Any | None = None,
+                       checkpoint_dir: Path | None = None, inprocess_execution: bool = True) -> FastAPI:
     path = str(db_path)
     clock = clock or SystemClock()
-    auth = OperatorAuth(encoded_password if encoded_password is not None else load_password(operator_file), clock)
+    if accounts is None and encoded_password is None:
+        import os
+        from swarmguard.console.auth import load_accounts
+        accounts = load_accounts(Path(os.environ.get("SWARMGUARD_OPERATORS_FILE", ".console/operators.json"))) or None
+    auth = OperatorAuth(accounts if accounts is not None else
+                        (encoded_password if encoded_password is not None else load_password(operator_file)), clock)
     observation = create_app(path)
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
-        writer = Database(path)
+        writer = Database(path, migrate=inprocess_execution)   # hardened mode: migrations belong to the migrate job
         # Registry snapshots and synthetic fixtures are initialized by the trusted simulator.
-        from swarmguard.agents.simulator import SwarmSimulator
-        initial = SwarmSimulator(path, clock=clock)
-        initial.close()
+        if inprocess_execution:
+            from swarmguard.agents.simulator import SwarmSimulator
+            initial = SwarmSimulator(path, clock=clock)
+            initial.close()
         manager = JobManager(writer, clock, step_delay=step_delay, code_revision=code_revision)
         from swarmguard.console.research import ResearchJobs
         app.state.research = ResearchJobs(writer, clock, manager.worker, code_revision)
@@ -113,11 +121,27 @@ def create_console_app(db_path: str | Path = "swarmguard_console.db", *,
 
     app = FastAPI(title="SwarmGuard Research Console", version="0.5.0", lifespan=lifespan,
                   description="Loopback research prototype. Mock execution only. Authorization stays in the Capability Gateway.")
-    app.add_middleware(TrustedHostMiddleware, allowed_hosts=["localhost", "127.0.0.1", "testserver"])
+    app.add_middleware(TrustedHostMiddleware, allowed_hosts=["localhost", "127.0.0.1", "testserver",
+                                                         *[h for h in __import__("os").environ.get("SWARMGUARD_ALLOWED_HOSTS", "").split(",") if h]])
     from swarmguard.console.research import register_research_routes
     register_research_routes(app, auth)
     from swarmguard.console.platform import register_platform_routes
     register_platform_routes(app, auth)
+    from swarmguard.console.security_routes import register_security_routes
+    app.state.control = control_plane
+    register_security_routes(app, auth, control_plane, clock, checkpoint_dir)
+
+    INPROCESS_LAUNCH = ("/api/workflows", "/api/experiments", "/api/jobs/", "/api/research/", "/api/integrations/runs",
+                        "/api/evaluation/", "/api/regression/", "/api/platform/")
+
+    @app.middleware("http")
+    async def hardened_mode(request: Request, call_next: Any) -> Response:
+        # Stage 7 hardened deployment: the control service has no in-process executor. Synthetic research
+        # simulators (which execute mock tools in-process) run only in local development mode.
+        if not inprocess_execution and request.method == "POST" and request.url.path.startswith(INPROCESS_LAUNCH):
+            return Response('{"detail":"in-process synthetic execution is disabled in the hardened deployment"}',
+                            status_code=403, media_type="application/json")
+        return await call_next(request)
 
     @app.middleware("http")
     async def browser_headers(request: Request, call_next: Any) -> Response:
@@ -164,15 +188,18 @@ def create_console_app(db_path: str | Path = "swarmguard_console.db", *,
         for a in repos().approvals.list():
             job = workflow_job(a.workflow_id)
             deadline = a.expires_at or (a.created_at + timedelta(minutes=15))
+            wf = repos().workflows.get(a.workflow_id) if control_plane is not None else None
+            # Stage 7 deployment workflows are owned by the control plane, not by a console job.
+            control_owned = bool(wf and wf.metadata.get("control_plane"))
             out.append(ApprovalView(
                 approval_id=a.approval_id, workflow_id=a.workflow_id, operation=a.operation,
                 resource_id=a.resource_id, resource_version=a.resource_version, parameters=a.approved_parameters,
                 requested_by=a.requested_by, operation_hash=a.operation_hash,
                 status="EXPIRED" if a.status == ApprovalStatus.PENDING and deadline <= clock.now() else a.status.value,
                 approver_id=a.approver_id, created_at=a.created_at.isoformat(), expires_at=deadline.isoformat(),
-                actionable=bool(job and job.status in {"RUNNING", "WAITING_APPROVAL", "PAUSED"}
-                                and job.config.execution_mode == "MOCK_AUTONOMOUS" and a.status == ApprovalStatus.PENDING
-                                and deadline > clock.now())))
+                actionable=bool(((job and job.status in {"RUNNING", "WAITING_APPROVAL", "PAUSED"}
+                                  and job.config.execution_mode == "MOCK_AUTONOMOUS") or control_owned)
+                                and a.status == ApprovalStatus.PENDING and deadline > clock.now())))
         return out
 
     @app.get("/api/health")
@@ -191,12 +218,13 @@ def create_console_app(db_path: str | Path = "swarmguard_console.db", *,
     @app.get("/api/session", response_model=SessionView)
     async def session(request: Request) -> SessionView:
         s = auth.session(request)
-        return SessionView(authenticated=bool(s), operator_id=OPERATOR if s else None,
-                           csrf_token=s.csrf if s else None, login_available=auth.password is not None)
+        return SessionView(authenticated=bool(s), operator_id=s.username if s else None,
+                           csrf_token=s.csrf if s else None, login_available=auth.password is not None,
+                           roles=sorted(s.roles) if s else [])
 
     @app.post("/api/session", response_model=SessionView)
     async def login(body: Login, request: Request, response: Response) -> SessionView:
-        token = auth.login(request, body.password)
+        token = auth.login(request, body.password, body.username)
         # Rotation prevents session fixation. JavaScript never receives this token.
         old = request.cookies.get(COOKIE)
         if old:
@@ -205,7 +233,8 @@ def create_console_app(db_path: str | Path = "swarmguard_console.db", *,
         response.set_cookie(COOKIE, token, httponly=True, secure=secure_cookie, samesite="strict", max_age=3600, path="/")
         import hashlib
         s = auth.sessions[hashlib.sha256(token.encode()).hexdigest()]
-        return SessionView(authenticated=True, operator_id=OPERATOR, csrf_token=s.csrf, login_available=True)
+        return SessionView(authenticated=True, operator_id=s.username, csrf_token=s.csrf, login_available=True,
+                           roles=sorted(s.roles))
 
     @app.post("/api/session/logout")
     async def logout(request: Request, response: Response) -> dict[str, bool]:
@@ -319,10 +348,30 @@ def create_console_app(db_path: str | Path = "swarmguard_console.db", *,
 
     @app.post("/api/approvals/{approval_id}", response_model=ApprovalView)
     async def decide_approval(body: ApprovalDecision, request: Request, approval_id: str = PathParam(pattern=ID_PATTERN)) -> ApprovalView:
-        auth.require(request)
+        session = auth.require(request, "OPERATOR")
         a = repos().approvals.get(approval_id)
         if a is None:
             raise HTTPException(404, "approval not found")
+        wf_record = repos().workflows.get(a.workflow_id)
+        if control_plane is not None and wf_record is not None and wf_record.metadata.get("control_plane"):
+            # Stage 7 deployment workflow: the authenticated account is the trusted approver itself.
+            try:
+                current = control_plane.approvals.get(approval_id)
+                if current is None or current.status != ApprovalStatus.PENDING:
+                    raise ApprovalError("approval is not pending")
+                resource = control_plane.workspace.get(a.resource_id)
+                if not resource or resource.version != a.resource_version or any(
+                        resource.content.get(k) != v for k, v in current.approved_parameters.items()):
+                    raise ApprovalError("resource or protected parameters changed since request")
+                if body.decision == "APPROVE":
+                    control_plane.grant_approval(approval_id, approver_id=session.username, operation_hash=body.operation_hash)
+                else:
+                    control_plane.reject_approval(approval_id, approver_id=session.username, reason=body.reason)
+            except PermissionError as exc:
+                raise HTTPException(403, str(exc)) from None
+            except ApprovalError as exc:
+                raise HTTPException(409, str(exc)) from None
+            return next(r for r in approvals() if r.approval_id == approval_id)
         job = workflow_job(a.workflow_id)
         sim = (manager().simulators.get(job.job_id) or app.state.platform.simulators.get(job.job_id)) if job else None
         if not job or not sim or job.config.execution_mode != "MOCK_AUTONOMOUS" or job.status not in (
@@ -361,18 +410,18 @@ def create_console_app(db_path: str | Path = "swarmguard_console.db", *,
 
     @app.post("/api/workflows", response_model=JobRecord, status_code=202)
     async def start_workflow(body: RunConfig, request: Request) -> JobRecord:
-        auth.require(request)
+        auth.require(request, "RESEARCHER")
         return manager().start(body, "workflow")
 
     @app.post("/api/experiments", response_model=JobRecord, status_code=202)
     async def start_experiment(body: RunConfig, request: Request) -> JobRecord:
-        auth.require(request)
+        auth.require(request, "RESEARCHER")
         return manager().start(body, "experiment")
 
     @app.post("/api/jobs/{job_id}/{command}", response_model=JobRecord)
     async def control_job(request: Request, job_id: str = PathParam(pattern=ID_PATTERN),
                           command: Literal["pause", "resume", "stop"] = "stop") -> JobRecord:
-        auth.require(request)
+        auth.require(request, "RESEARCHER")
         return await manager().command(job_id, command)
 
     @app.get("/api/jobs/{job_id}/results")

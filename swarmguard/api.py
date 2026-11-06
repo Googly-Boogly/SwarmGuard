@@ -133,7 +133,8 @@ def create_app(db_path: str | Path | None = None, results_dir: str | Path | None
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
-        if not Path(path).exists():
+        from swarmguard.storage.database import is_postgres_url
+        if not is_postgres_url(path) and not Path(path).exists():
             Database(path).close()  # create an empty schema so the read-only open succeeds
         db = Database(path, read_only=True)
         app.state.monitor = WorkflowMonitor(db, SystemClock())

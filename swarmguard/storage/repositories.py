@@ -12,7 +12,6 @@ from datetime import datetime
 from typing import Any
 
 from swarmguard.models.actions import ActionRequest
-import sqlite3
 
 from swarmguard.models.approvals import ApprovalRecord, ApprovalStatus
 from swarmguard.models.assessments import CouncilEvaluationRecord, CouncilReport
@@ -27,7 +26,8 @@ from swarmguard.models.workflows import (
     WorkflowRecord,
     WorkflowStatus,
 )
-from swarmguard.storage.database import Database
+from swarmguard.audit.hash_chain import EVENT_COLUMNS, GENESIS_HASH, link_hash, payload_hash
+from swarmguard.storage.database import INTEGRITY_ERRORS, OPERATIONAL_ERRORS, Database
 
 
 def _dt(value: str | None) -> datetime | None:
@@ -199,6 +199,42 @@ class DecisionRepository:
         return [DecisionRecord.model_validate_json(r["record_json"]) for r in rows]
 
 
+class AuditChainRepository:
+    """Append-only chain links for ``events``. No update or delete methods exist by design."""
+
+    def __init__(self, db: Database) -> None:
+        self._db = db
+
+    def head(self) -> tuple[int, str] | None:
+        row = self._db.fetchone("SELECT seq, event_hash FROM audit_chain ORDER BY seq DESC LIMIT 1")
+        return (int(row[0]), str(row[1])) if row else None
+
+    def append(self, event_row: dict[str, Any]) -> str:
+        with self._db.transaction():
+            head = self.head()
+            previous = head[1] if head else GENESIS_HASH
+            payload = payload_hash(event_row)
+            digest = link_hash(event_row["seq"], event_row["event_id"], payload, previous)
+            self._db.execute("INSERT INTO audit_chain(seq, event_id, payload_hash, previous_hash, event_hash, "
+                             "chained_at) VALUES (?, ?, ?, ?, ?, ?)",
+                             (event_row["seq"], event_row["event_id"], payload, previous, digest,
+                              event_row["created_at"]))
+        return digest
+
+    def links(self, after_seq: int = 0, limit: int | None = None) -> list[dict[str, Any]]:
+        sql = "SELECT * FROM audit_chain WHERE seq > ? ORDER BY seq" + (" LIMIT ?" if limit else "")
+        return [dict(zip(r.keys(), tuple(r))) for r in self._db.fetchall(sql, (after_seq, limit) if limit else (after_seq,))]
+
+    def event_rows(self, after_seq: int = 0) -> list[dict[str, Any]]:
+        cols = ", ".join(EVENT_COLUMNS)
+        return [dict(zip(EVENT_COLUMNS, tuple(r))) for r in
+                self._db.fetchall(f"SELECT {cols} FROM events WHERE seq > ? ORDER BY seq", (after_seq,))]
+
+    def link_at(self, seq: int) -> dict[str, Any] | None:
+        r = self._db.fetchone("SELECT * FROM audit_chain WHERE seq = ?", (seq,))
+        return dict(zip(r.keys(), tuple(r))) if r else None
+
+
 class EventRepository:
     def __init__(self, db: Database) -> None:
         self._db = db
@@ -208,16 +244,18 @@ class EventRepository:
         return int(seq)
 
     def insert(self, e: WorkflowEvent) -> None:
-        self._db.execute(
-            "INSERT INTO events(event_id, seq, workflow_id, event_type, agent_id, actor_type, action_id, tool, "
-            "resource_id, resource_version_before, resource_version_after, approval_id, decision, reason_code, "
-            "parent_event_ids_json, related_event_ids_json, summary, details_json, created_at) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            (e.event_id, e.seq, e.workflow_id, e.event_type.value, e.agent_id, e.actor_type.value, e.action_id,
-             e.tool, e.resource_id, e.resource_version_before, e.resource_version_after, e.approval_id, e.decision,
-             e.reason_code, _json(e.parent_event_ids), _json(e.related_event_ids), e.summary, _json(e.details),
-             e.created_at.isoformat()),
-        )
+        """Append one event and its audit-chain link in the same transaction (Stage 7)."""
+        values = (e.event_id, e.seq, e.workflow_id, e.event_type.value, e.agent_id, e.actor_type.value, e.action_id,
+                  e.tool, e.resource_id, e.resource_version_before, e.resource_version_after, e.approval_id,
+                  e.decision, e.reason_code, _json(e.parent_event_ids), _json(e.related_event_ids), e.summary,
+                  _json(e.details), e.created_at.isoformat())
+        with self._db.transaction():
+            self._db.execute(
+                "INSERT INTO events(event_id, seq, workflow_id, event_type, agent_id, actor_type, action_id, tool, "
+                "resource_id, resource_version_before, resource_version_after, approval_id, decision, reason_code, "
+                "parent_event_ids_json, related_event_ids_json, summary, details_json, created_at) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", values)
+            AuditChainRepository(self._db).append(dict(zip(EVENT_COLUMNS, values)))
 
     def query(
         self,
@@ -371,7 +409,7 @@ class EthicsEvaluationRepository:
         try:
             rows = self._db.fetchall(
                 "SELECT * FROM ethics_evaluations WHERE workflow_id = ? ORDER BY evaluation_id", (workflow_id,))
-        except sqlite3.OperationalError:  # database created before Stage 3 (no table): nothing recorded
+        except OPERATIONAL_ERRORS:  # database created before Stage 3 (no table): nothing recorded
             return []
         return [CouncilEvaluationRecord(
             evaluation_id=x["evaluation_id"], workflow_id=x["workflow_id"], action_id=x["action_id"],
@@ -383,7 +421,7 @@ class EthicsEvaluationRepository:
 def _safe_rows(db: Database, sql: str, params: tuple = ()) -> list[Any]:
     try:
         return db.fetchall(sql, params)
-    except sqlite3.OperationalError:  # database created before the table existed
+    except OPERATIONAL_ERRORS:  # database created before the table existed
         return []
 
 
@@ -642,3 +680,218 @@ class PlatformRepository:
         return [{**json.loads(r["record_json"]), "seq": r["seq"]} for r in self.db.fetchall(
             "SELECT seq, record_json FROM integration_events WHERE (? IS NULL OR integration_id = ?) "
             "AND seq > ? ORDER BY seq LIMIT ?", (integration_id, integration_id, after_seq, limit))]
+
+
+# ---------------------------------------------------------------------------- Stage 7 trusted state
+
+
+def _row_dict(row: Any) -> dict[str, Any]:
+    return dict(zip(row.keys(), tuple(row)))
+
+
+class ServiceIdentityRepository:
+    """Agent-runtime service identities, agent bindings and revoked credential IDs (Boundary B)."""
+
+    def __init__(self, db: Database) -> None:
+        self._db = db
+
+    def create_runtime(self, runtime_id: str, description: str, *, created_by: str, at: str) -> None:
+        self._db.execute("INSERT INTO service_runtimes(runtime_id, description, status, created_at, created_by) "
+                         "VALUES (?, ?, 'ACTIVE', ?, ?)", (runtime_id, description, at, created_by))
+
+    def runtime(self, runtime_id: str) -> dict[str, Any] | None:
+        row = self._db.fetchone("SELECT * FROM service_runtimes WHERE runtime_id = ?", (runtime_id,))
+        return _row_dict(row) if row else None
+
+    def runtimes(self) -> list[dict[str, Any]]:
+        return [_row_dict(r) for r in self._db.fetchall("SELECT * FROM service_runtimes ORDER BY runtime_id")]
+
+    def revoke_runtime(self, runtime_id: str, *, by: str, reason: str, at: str) -> bool:
+        with self._db.transaction():
+            cur = self._db.execute("UPDATE service_runtimes SET status = 'REVOKED', revoked_at = ?, revoked_by = ?, "
+                                   "revocation_reason = ? WHERE runtime_id = ? AND status = 'ACTIVE'",
+                                   (at, by, reason, runtime_id))
+            self._db.execute("UPDATE agent_bindings SET status = 'REVOKED', revoked_at = ?, revoked_by = ? "
+                             "WHERE runtime_id = ? AND status = 'ACTIVE'", (at, by, runtime_id))
+            return cur.rowcount == 1
+
+    def bind_agent(self, agent_id: str, runtime_id: str, role: str, workflows: list[str], capabilities: list[str],
+                   *, created_by: str, at: str) -> None:
+        self._db.execute("INSERT INTO agent_bindings(agent_id, runtime_id, role, workflows_json, capabilities_json, "
+                         "status, created_at, created_by) VALUES (?, ?, ?, ?, ?, 'ACTIVE', ?, ?)",
+                         (agent_id, runtime_id, role, _json(sorted(workflows)), _json(sorted(capabilities)), at,
+                          created_by))
+
+    def binding(self, agent_id: str) -> dict[str, Any] | None:
+        row = self._db.fetchone("SELECT * FROM agent_bindings WHERE agent_id = ?", (agent_id,))
+        return self._binding(row) if row else None
+
+    def bindings(self) -> list[dict[str, Any]]:
+        return [self._binding(r) for r in self._db.fetchall("SELECT * FROM agent_bindings ORDER BY agent_id")]
+
+    @staticmethod
+    def _binding(row: Any) -> dict[str, Any]:
+        d = _row_dict(row)
+        d["workflows"] = json.loads(d.pop("workflows_json"))
+        d["capabilities"] = json.loads(d.pop("capabilities_json"))
+        return d
+
+    def revoke_agent(self, agent_id: str, *, by: str, at: str) -> bool:
+        cur = self._db.execute("UPDATE agent_bindings SET status = 'REVOKED', revoked_at = ?, revoked_by = ? "
+                               "WHERE agent_id = ? AND status = 'ACTIVE'", (at, by, agent_id))
+        return cur.rowcount == 1
+
+    def revoke_credential(self, jti: str, *, by: str, reason: str, at: str) -> bool:
+        try:
+            self._db.execute("INSERT INTO revoked_credentials(jti, revoked_at, revoked_by, reason) VALUES (?, ?, ?, ?)",
+                             (jti, at, by, reason))
+            return True
+        except INTEGRITY_ERRORS:
+            return False
+
+    def credential_revoked(self, jti: str) -> bool:
+        return self._db.fetchone("SELECT 1 FROM revoked_credentials WHERE jti = ?", (jti,)) is not None
+
+    def revoked_credentials(self) -> list[dict[str, Any]]:
+        return [_row_dict(r) for r in self._db.fetchall("SELECT * FROM revoked_credentials ORDER BY revoked_at")]
+
+
+OPERATION_STATES = ("PENDING", "AUTHORIZED", "EXECUTING", "SUCCEEDED", "FAILED", "BLOCKED", "UNKNOWN")
+FINAL_OPERATION_STATES = frozenset({"SUCCEEDED", "FAILED", "BLOCKED", "UNKNOWN"})
+
+
+class ProtectedOperationRepository:
+    """Durable remote-operation state with compare-and-set transitions (Boundary B).
+
+    ``UNIQUE(agent_id, request_id)`` is the idempotency key; ``UNIQUE(action_id)`` binds one gateway
+    action to at most one operation. Every transition is versioned in ``operation_transitions``.
+    """
+
+    def __init__(self, db: Database) -> None:
+        self._db = db
+
+    def create(self, *, operation_id: str, agent_id: str, runtime_id: str, request_id: str, request_digest: str,
+               workflow_id: str, tool: str, correlation_id: str, at: str) -> bool:
+        try:
+            with self._db.transaction():
+                self._db.execute(
+                    "INSERT INTO protected_operations(operation_id, agent_id, runtime_id, request_id, request_digest, "
+                    "workflow_id, tool, state, correlation_id, version, created_at, updated_at) "
+                    "VALUES (?, ?, ?, ?, ?, ?, ?, 'PENDING', ?, 1, ?, ?)",
+                    (operation_id, agent_id, runtime_id, request_id, request_digest, workflow_id, tool, correlation_id,
+                     at, at))
+                self._db.execute("INSERT INTO operation_transitions(operation_id, version, from_state, to_state, actor, "
+                                 "reason_code, occurred_at) VALUES (?, 1, NULL, 'PENDING', ?, NULL, ?)",
+                                 (operation_id, "swarmguard.gateway", at))
+            return True
+        except INTEGRITY_ERRORS:
+            return False
+
+    def get(self, operation_id: str) -> dict[str, Any] | None:
+        row = self._db.fetchone("SELECT * FROM protected_operations WHERE operation_id = ?", (operation_id,))
+        return self._op(row) if row else None
+
+    def by_request(self, agent_id: str, request_id: str) -> dict[str, Any] | None:
+        row = self._db.fetchone("SELECT * FROM protected_operations WHERE agent_id = ? AND request_id = ?",
+                                (agent_id, request_id))
+        return self._op(row) if row else None
+
+    def list(self, *, state: str | None = None, limit: int = 500) -> list[dict[str, Any]]:
+        if state:
+            rows = self._db.fetchall("SELECT * FROM protected_operations WHERE state = ? ORDER BY created_at DESC, "
+                                     "operation_id DESC LIMIT ?", (state, limit))
+        else:
+            rows = self._db.fetchall("SELECT * FROM protected_operations ORDER BY created_at DESC, operation_id DESC "
+                                     "LIMIT ?", (limit,))
+        return [self._op(r) for r in rows]
+
+    def counts(self) -> dict[str, int]:
+        return {str(r[0]): int(r[1]) for r in
+                self._db.fetchall("SELECT state, COUNT(*) FROM protected_operations GROUP BY state")}
+
+    def transitions(self, operation_id: str) -> list[dict[str, Any]]:
+        return [_row_dict(r) for r in self._db.fetchall(
+            "SELECT * FROM operation_transitions WHERE operation_id = ? ORDER BY version", (operation_id,))]
+
+    @staticmethod
+    def _op(row: Any) -> dict[str, Any]:
+        d = _row_dict(row)
+        d["expected"] = json.loads(d.pop("expected_json") or "{}")
+        for key in ("response_json", "result_json"):
+            raw = d.pop(key)
+            d[key[:-5]] = json.loads(raw) if raw else None
+        return d
+
+    def transition(self, operation_id: str, *, from_states: tuple[str, ...], to_state: str, actor: str, at: str,
+                   reason_code: str | None = None, **fields: Any) -> bool:
+        """Conditional state change; returns False if another writer moved the operation first."""
+        if to_state not in OPERATION_STATES:
+            raise ValueError(f"unknown operation state {to_state}")
+        allowed = {"action_id", "authorization_digest", "expected", "response", "result", "grant_expires_at"}
+        if set(fields) - allowed:
+            raise ValueError(f"unsupported operation fields: {sorted(set(fields) - allowed)}")
+        sets, params = ["state = ?", "reason_code = COALESCE(?, reason_code)", "version = version + 1", "updated_at = ?"], \
+            [to_state, reason_code, at]
+        for key, value in fields.items():
+            column = {"expected": "expected_json", "response": "response_json", "result": "result_json"}.get(key, key)
+            sets.append(f"{column} = ?")
+            params.append(_json(value) if key in ("expected", "response", "result") else value)
+        marks = ", ".join("?" for _ in from_states)
+        with self._db.transaction():
+            current = self._db.fetchone("SELECT state, version FROM protected_operations WHERE operation_id = ?",
+                                        (operation_id,))
+            if current is None or current[0] not in from_states:
+                return False
+            # nosec B608: column names come only from the fixed allowlist above; every value is a bound parameter.
+            cur = self._db.execute(f"UPDATE protected_operations SET {', '.join(sets)} WHERE operation_id = ? "  # nosec B608
+                                   f"AND state IN ({marks}) AND version = ?",
+                                   (*params, operation_id, *from_states, current[1]))
+            if cur.rowcount != 1:
+                return False
+            self._db.execute("INSERT INTO operation_transitions(operation_id, version, from_state, to_state, actor, "
+                             "reason_code, occurred_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                             (operation_id, int(current[1]) + 1, current[0], to_state, actor, reason_code, at))
+        return True
+
+
+class ControlStateRepository:
+    """Versioned trusted control flags (emergency stop, disabled capabilities). CAS writes only."""
+
+    def __init__(self, db: Database) -> None:
+        self._db = db
+
+    def get(self, key: str) -> tuple[dict[str, Any], int] | None:
+        row = self._db.fetchone("SELECT value_json, version FROM control_state WHERE key = ?", (key,))
+        return (json.loads(row[0]), int(row[1])) if row else None
+
+    def put(self, key: str, value: dict[str, Any], *, expected_version: int | None, by: str, at: str) -> int:
+        with self._db.transaction():
+            current = self.get(key)
+            if (current[1] if current else None) != expected_version:
+                raise ValueError(f"control state {key} changed concurrently")
+            if current is None:
+                self._db.execute("INSERT INTO control_state(key, value_json, version, updated_at, updated_by) "
+                                 "VALUES (?, ?, 1, ?, ?)", (key, _json(value), at, by))
+                return 1
+            self._db.execute("UPDATE control_state SET value_json = ?, version = version + 1, updated_at = ?, "
+                             "updated_by = ? WHERE key = ? AND version = ?", (_json(value), at, by, key, current[1]))
+            return current[1] + 1
+
+
+class HeartbeatRepository:
+    def __init__(self, db: Database) -> None:
+        self._db = db
+
+    def beat(self, service: str, status: str, detail: dict[str, Any], at: str) -> None:
+        self._db.execute("INSERT INTO service_heartbeats(service, status, detail_json, heartbeat_at) VALUES (?, ?, ?, ?) "
+                         "ON CONFLICT(service) DO UPDATE SET status = excluded.status, "
+                         "detail_json = excluded.detail_json, heartbeat_at = excluded.heartbeat_at",
+                         (service, status, _json(detail), at))
+
+    def all(self) -> list[dict[str, Any]]:
+        out = []
+        for r in self._db.fetchall("SELECT * FROM service_heartbeats ORDER BY service"):
+            d = _row_dict(r)
+            d["detail"] = json.loads(d.pop("detail_json"))
+            out.append(d)
+        return out

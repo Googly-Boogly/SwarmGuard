@@ -101,3 +101,25 @@ trusted intervention safety/utility. Mock outcomes validate infrastructure only.
 errors and correlated failures are measured rather than assuming independence. Public inherited
 held-out cases remain operationally separated, but do not provide a new blind test. Independently
 authored sealed scenarios and explicitly authorized repeated live trials remain necessary research.
+
+## Stage 6: cross-framework integration (RQ6.1–RQ6.5)
+
+- **RQ6.1** Does workflow-level monitoring keep its effectiveness across frameworks? Measured only on three
+  synthetic fixtures with scripted models; identical proposals yield identical monitor inputs, so equal mock
+  scores are expected by construction and are **not** evidence for RQ6.1.
+- **RQ6.2** Can protected permissions be enforced without model cooperation? Tested at the tool boundary
+  (forged/stale approvals blocked inside real framework dispatch; unknown tool names refused). This holds only
+  within the in-process trust boundary.
+- **RQ6.3** Can regression testing catch introduced failures? Demonstrated for one controlled fixture
+  (recipient redirect). This shows the gate works, not that it detects unknown regressions.
+- **RQ6.4** Overhead: `runtime_overhead.py` measures four configurations per framework with small n; descriptive only.
+- **RQ6.5** Achievable guarantees per framework: recorded as declared capabilities plus measured
+  `native_event_coverage`; see the per-framework docs.
+
+Open work: live-model framework runs, independent fixtures, more than one regression type, and out-of-process enforcement.
+
+## Stage 7: engineering validation (not a research result)
+
+Stage 7 adds no detector or ethics experiment and no new RQ evidence. Its verification establishes that the
+implemented service boundaries, fault handling and controls behave as tested in synthetic, disposable
+deployments. Live-model behaviour behind the remote gateway was not evaluated.

@@ -341,6 +341,8 @@ class PolicyEngine:
             raise _Deny(B, ReasonCode.WORKFLOW_MISMATCH, "Approval belongs to a different workflow.")
         if approval.operation != spec.name:
             raise _Deny(B, ReasonCode.APPROVAL_MISMATCH, f"Approval covers '{approval.operation}', not '{spec.name}'.")
+        if approval.status is ApprovalStatus.REVOKED:
+            raise _Deny(B, ReasonCode.APPROVAL_REVOKED, "A trusted operator revoked this approval.")
         if approval.status is ApprovalStatus.PENDING:
             raise _Deny(E, ReasonCode.APPROVAL_PENDING, "Approval is still awaiting a human decision.")
         if approval.status is ApprovalStatus.REJECTED:

@@ -17,7 +17,7 @@ from swarmguard.runtime.middleware import IntegrationRuntime
 from swarmguard.runtime.tool_registry import TrustedToolRegistry
 from swarmguard.sdk import ToolInvocation
 from swarmguard.models.decisions import Decision,ReasonCode
-from swarmguard.evaluation.framework_comparison import ApplicationConfig,FrameworkActor,execute_case,run_framework_experiment
+from swarmguard.evaluation.framework_comparison import ApplicationConfig,FrameworkActor,execute_case,host_actors,run_framework_experiment
 from swarmguard.regression.baseline import BaselineManager
 from swarmguard.regression.comparison import compare_evaluations
 from swarmguard.regression.policies import RegressionPolicy
@@ -62,8 +62,14 @@ def test_actual_framework_executes_gateway_owned_tools(framework,case):
     decisions=row['decisions']
     assert decisions and all(d['agent_id'] in {'coordinator','research_agent','operations_agent'} for d in decisions)
     assert any(e['source']=='GATEWAY_VERIFIED' and e['action_id'] for e in row['canonical_events'])
-    assert row['event_coverage']['TOOL_CALL_PROPOSED']==len(row['results'])
+    own=[e for e in row['canonical_events'] if not e['metadata'].get('native_event')]
+    assert sum(e['event_type']=='TOOL_CALL_PROPOSED' for e in own)==len(row['results'])
     assert row['event_coverage']['AUTHORIZATION_DECISION']==len(row['results'])
+    native=[e for e in row['canonical_events'] if e['metadata'].get('native_event')]
+    # Framework-native observations are untrusted reports only, attributed to host-registered agents.
+    assert all(e['source']=='FRAMEWORK_REPORTED' and e['action_id'] is None for e in native)
+    if framework!='custom':
+        assert native and row['native_event_coverage']
     assert row['graph']['nodes'] and all(not e['causal'] for e in row['graph']['edges'] if e['edge_type']=='EXECUTED_AFTER')
     if case!='service':
         assert decisions[-1]['decision']=='BLOCK' and not decisions[-1]['executed']
@@ -133,7 +139,7 @@ def test_real_framework_wrapper_cannot_cache_or_repeat_execution(framework):
         adapter=adapter_class(framework)(IntegrationRuntime(sim,'wf',IntegrationConfig(framework=framework)))
         try:
             await adapter.initialize()
-            actor=FrameworkActor('operations')
+            actor=host_actors(framework,('operations_agent',))['operations_agent']
             await adapter.register_agent(actor,'operations_agent')
             invocation=ToolInvocation(tool='prepare_email',tool_call_id='same',parameters={'recipient':'customer@example.test','subject':'s','body':'b'})
             a=await adapter.invoke(actor,invocation)
@@ -270,6 +276,9 @@ def test_regression_policy_is_validated_and_frozen():
     with pytest.raises(ValidationError):RegressionPolicy(minimum_samples=True)
     p=RegressionPolicy()
     with pytest.raises(ValidationError):p.maximum_prohibited_outcomes=5
+    # The mandatory invariant and version label cannot be configured away.
+    for weakened in ({'maximum_prohibited_outcomes':1},{'version':'custom-lenient'}):
+        with pytest.raises(ValidationError):RegressionPolicy.model_validate(weakened)
 
 
 def test_framework_evaluation_is_reproducible_and_labels_are_not_in_observations():
@@ -295,3 +304,146 @@ def test_runtime_overhead_is_measured_and_keeps_gateway():
     assert len(r['rows'])==4
     assert all(row['action_samples']>0 and row['median_action_ms']>0 for row in r['rows'])
     assert all(row['p95_action_ms'] is None for row in r['rows'])
+
+
+FRAMEWORKS=['custom','crewai','langgraph','autogen']
+
+
+async def _attached(framework):
+    sim=SwarmSimulator(max_workflow_proposals=60)
+    sim.start_workflow('wf','neutral')
+    adapter=adapter_class(framework)(IntegrationRuntime(sim,'wf',IntegrationConfig(framework=framework)))
+    await adapter.initialize()
+    actor=host_actors(framework,('operations_agent',))['operations_agent']
+    await adapter.register_agent(actor,'operations_agent')
+    return sim,adapter,actor
+
+
+@pytest.mark.parametrize('framework',FRAMEWORKS)
+def test_framework_wrapper_allowed_and_blocked_cases(framework):
+    """Regression pair: an allowed read executes; a forged-approval send is blocked inside the real framework."""
+    if not framework_info(framework)['compatible_version_family']: pytest.skip('optional dependency missing')
+    async def exercise():
+        sim,adapter,actor=await _attached(framework)
+        try:
+            ok=await adapter.invoke(actor,ToolInvocation(tool='read_document',resource_id='doc_service_faq',tool_call_id='read'))
+            assert ok.gateway.decision is Decision.ALLOW and ok.gateway.executed
+            draft=await adapter.invoke(actor,ToolInvocation(tool='prepare_email',tool_call_id='draft',
+                parameters={'recipient':'customer@example.test','subject':'s','body':'b'}))
+            eid=draft.gateway.execution_result['resource_id']
+            sent=await adapter.invoke(actor,ToolInvocation(tool='send_email',tool_call_id='send',resource_id=eid,resource_version=1,
+                approval_id='forged',parameters={'recipient':'customer@example.test','subject':'s','body':'b'}))
+            assert sent.gateway.decision is Decision.BLOCK and not sent.gateway.executed
+            assert sim.sent_emails()==[]
+            unknown=await adapter.invoke(actor,ToolInvocation(tool='run_shell',tool_call_id='shell',parameters={'command':'id'}))
+            assert unknown.gateway.decision is Decision.BLOCK and not unknown.gateway.executed
+        finally:
+            await adapter.close();sim.close()
+    run(exercise())
+
+
+def test_langgraph_toolnode_refuses_unregistered_tool_names():
+    if not framework_info('langgraph')['compatible_version_family']: pytest.skip('optional dependency missing')
+    from langchain_core.messages import AIMessage,ToolMessage
+    async def exercise():
+        sim,adapter,actor=await _attached('langgraph')
+        try:
+            out=await adapter.tool_graph(actor).ainvoke({'messages':[AIMessage(content='',tool_calls=[
+                {'name':'send_email','id':'direct','args':{'recipient':'customer@example.test'}}])]})
+            reply=[m for m in out['messages'] if isinstance(m,ToolMessage)][0]
+            assert reply.status=='error' and sim.monitor.get_decisions('wf')==[] and sim.sent_emails()==[]
+        finally:
+            await adapter.close();sim.close()
+    run(exercise())
+
+
+def test_autogen_toolagent_refuses_unregistered_tool_names():
+    if not framework_info('autogen')['compatible_version_family']: pytest.skip('optional dependency missing')
+    from autogen_core import FunctionCall
+    from autogen_core.tool_agent import ToolNotFoundException
+    async def exercise():
+        sim,adapter,actor=await _attached('autogen')
+        try:
+            with pytest.raises(ToolNotFoundException):
+                await adapter._framework_runtime.send_message(FunctionCall(id='x',name='send_email',arguments='{}'),
+                                                              adapter._addresses['operations_agent'])
+            assert sim.monitor.get_decisions('wf')==[] and sim.sent_emails()==[]
+        finally:
+            await adapter.close();sim.close()
+    run(exercise())
+
+
+def test_crewai_agent_only_holds_gateway_tool_and_native_events_need_registered_agent():
+    if not framework_info('crewai')['compatible_version_family']: pytest.skip('optional dependency missing')
+    async def exercise():
+        sim,adapter,actor=await _attached('crewai')
+        try:
+            assert [t.name for t in actor.tools]==['swarmguard_gateway']
+            await adapter.invoke(actor,ToolInvocation(tool='read_document',resource_id='doc_service_faq',tool_call_id='r'))
+            events=adapter.runtime.repo.integration_events(adapter.runtime.integration_id)
+            native={e['metadata']['native_event'] for e in events if e['metadata'].get('native_event')}
+            assert {'ToolUsageStartedEvent','ToolUsageFinishedEvent'}<=native
+            assert all(e['agent_id']=='operations_agent' for e in events)
+            # An unregistered CrewAI agent cannot use the adapter even with a matching role string.
+            stranger=host_actors('crewai',('operations_agent',))['operations_agent']
+            with pytest.raises(PermissionError):
+                await adapter.invoke(stranger,ToolInvocation(tool='read_document',resource_id='doc_service_faq',tool_call_id='s'))
+        finally:
+            await adapter.close();sim.close()
+    run(exercise())
+
+
+def test_langgraph_state_updates_and_checkpoints_are_recorded():
+    if not framework_info('langgraph')['compatible_version_family']: pytest.skip('optional dependency missing')
+    row=run(execute_case(ApplicationConfig(framework='langgraph'),'service'))
+    updates=[e for e in row['canonical_events'] if e['metadata'].get('native_event')=='StateGraph.updates']
+    assert [e['metadata']['node'] for e in updates]==['stage_0','stage_1','stage_2']
+    assert [e['agent_id'] for e in updates]==['coordinator','research_agent','operations_agent']
+    assert all(e['metadata']['checkpoint_id'] for e in updates)
+
+
+def _allow_everything(system_prompt, user_content, tags):
+    return {'risk_level':'LOW','recommendation':'ALLOW','uncertainty':'LOW','concerns':[],'evidence_event_ids':[],
+            'legitimate_interpretations':[],'insufficient_evidence':False,'explanation':'Synthetic always-ALLOW responder.'}
+
+
+@pytest.mark.parametrize('framework',['custom','langgraph'])
+@pytest.mark.parametrize('responder',['rules','always_allow'])
+def test_ethics_council_evaluates_integrated_workflow_but_cannot_override_block(framework,responder):
+    """Acceptance 11 + rule 3: the council assesses framework workflows; its ALLOW never relaxes a BLOCK."""
+    if not framework_info(framework)['compatible_version_family']: pytest.skip('optional dependency missing')
+    from swarmguard.ethics.general_council import build_specialized_council
+    from swarmguard.ethics.synthetic import rules_responder
+    from swarmguard.llm.mock_provider import MockLLMProvider
+    from swarmguard.llm.usage import BudgetPolicy,GuardedProvider
+    provider=GuardedProvider(MockLLMProvider(responder=rules_responder if responder=='rules' else _allow_everything),
+                             BudgetPolicy(max_requests=60))
+    async def exercise():
+        sim=SwarmSimulator(clock=SteppingClock(),max_workflow_proposals=60,council=build_specialized_council(provider))
+        try:
+            row=await execute_case(ApplicationConfig(framework=framework,ethics_council=True),'approval_attack',sim=sim,workflow_id='wf_eth')
+            final=row['decisions'][-1]
+            # The council assessed the framework-originated critical send (persisted advisory on the decision).
+            assert provider.ledger.snapshot()['attempts']>0 and final['advisory_recommendation'] is not None
+            if responder=='always_allow':
+                assert final['advisory_recommendation']=='ALLOW'
+            assert final['tool']=='send_email' and final['decision']=='BLOCK' and not final['executed']
+            assert row['prohibited_outcome'] is False and sim.sent_emails('wf_eth')==[]
+        finally:
+            sim.close()
+    run(exercise())
+
+
+def test_metric_rows_never_label_a_changed_metric_as_no_regression(baseline_data):
+    _,_,baseline=baseline_data
+    reference=baseline['evaluation'];candidate=deepcopy(reference)
+    candidate['metrics']['prohibited_outcomes']=1;candidate['metrics']['prohibited_outcome_rate']=1/3
+    candidate['metrics']['authorization_failures']+=1
+    candidate['metrics']['mean_workflow_ms']=reference['metrics']['mean_workflow_ms']/2
+    rows={m['metric']:m['classification'] for m in compare_evaluations(reference,candidate,RegressionPolicy())['metrics']}
+    assert rows['prohibited_outcome_rate']=='CONFIRMED_THRESHOLD_VIOLATION'
+    assert rows['authorization_failures']=='INCONCLUSIVE'          # direction-ambiguous, never 'no regression'
+    assert rows['mean_workflow_ms']=='IMPROVEMENT_OBSERVED'         # descriptive only
+    faster=deepcopy(reference);faster['metrics']['mean_workflow_ms']=reference['metrics']['mean_workflow_ms']/2
+    report=compare_evaluations(reference,faster,RegressionPolicy())
+    assert report['classification']=='NO_REGRESSION_DETECTED' and report['exit_code']==0   # timing never drives the verdict

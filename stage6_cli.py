@@ -10,6 +10,7 @@ from swarmguard.clock import SystemClock
 from swarmguard.evaluation.framework_comparison import ApplicationConfig,run_framework_experiment
 from swarmguard.integrations.registry import available_frameworks,framework_info
 from swarmguard.regression.baseline import BaselineManager
+from swarmguard.regression.policies import RegressionPolicy
 from swarmguard.regression.runner import run_regression
 from swarmguard.storage.database import Database
 from swarmguard.storage.repositories import PlatformRepository
@@ -35,6 +36,7 @@ def parser(kind: str) -> argparse.ArgumentParser:
     p.add_argument('--require-all',action='store_true')
     p.add_argument('--write-approved-baseline',type=Path)
     p.add_argument('--overhead',action='store_true')
+    p.add_argument('--policy',type=Path,default=None,help='Regression policy JSON file (validated; mandatory invariant fixed)')
     return p
 
 
@@ -73,6 +75,13 @@ async def execute(kind: str,args: argparse.Namespace) -> int:
                 path=export(result,args.output,result['experiment_id'])
                 print(json.dumps({'framework':fw,'version':result['framework_version'],'status':result['status'],
                     'metrics':result['metrics'],'output':str(path)},indent=2))
+                for row in result['rows']:
+                    if not row.get('valid'):
+                        continue
+                    final=row['decisions'][-1] if row['decisions'] else {}
+                    print(f"  case={row['case_id']:<16} final {final.get('tool')}: {final.get('decision')}/{final.get('reason_code')} "
+                          f"executed={final.get('executed')} prohibited_outcome={row['prohibited_outcome']} "
+                          f"legitimate_completed={row['legitimate_completed']} native_events={sum(row.get('native_event_coverage',{}).values())}")
                 if result['status']!='COMPLETED':
                     print(json.dumps([r for r in result['rows'] if not r['valid']],indent=2))
                     return 2
@@ -91,10 +100,11 @@ async def execute(kind: str,args: argparse.Namespace) -> int:
                         return 2
             if args.overhead:
                 from swarmguard.evaluation.runtime_overhead import measure_runtime_overhead
-                overhead=await measure_runtime_overhead(names[0],trials=3)
-                oid=db.next_id('overhead')
-                repo.create('overhead',oid,overhead,actor='local_researcher',occurred_at=SystemClock().now().isoformat())
-                print('Overhead:',export(overhead,args.output,oid))
+                for fw in names:
+                    overhead=await measure_runtime_overhead(fw,trials=3)
+                    oid=db.next_id('overhead')
+                    repo.create('overhead',oid,overhead,actor='local_researcher',occurred_at=SystemClock().now().isoformat())
+                    print('Overhead:',fw,export(overhead,args.output,oid))
             print('Stage 6 demonstration check: PASS' if kind=='demo' else 'Framework evaluation check: PASS')
             return 0
         cfg=ApplicationConfig(framework=args.framework,profile=args.profile,application_version=args.application_version,trials=args.trials)
@@ -116,7 +126,12 @@ async def execute(kind: str,args: argparse.Namespace) -> int:
             stored=repo.get('baseline',reference)
             if not stored: raise ValueError('baseline not found; explicitly designate a completed safe evaluation first')
             baseline=stored[0]
-        report=await run_regression(cfg,baseline,db,revision=revision())
+        try:
+            policy_text=args.policy.read_text(encoding='utf-8') if args.policy else None
+        except OSError as exc:
+            raise ValueError(f'cannot read regression policy: {exc}') from None
+        policy=RegressionPolicy.model_validate_json(policy_text) if policy_text else RegressionPolicy()
+        report=await run_regression(cfg,baseline,db,policy=policy,revision=revision())
         print(json.dumps({k:report[k] for k in ('run_id','baseline_id','candidate_id','classification','exit_code','sample_counts','mandatory_violation','metrics')},indent=2))
         print('Report:',export(report,args.output,report['run_id']))
         return report['exit_code']
@@ -128,7 +143,7 @@ def main(kind: str) -> None:
     try:
         args=parser(kind).parse_args()
         code=asyncio.run(execute(kind,args))
-    except (ValueError,KeyError) as exc:
+    except (ValueError,KeyError) as exc:  # includes pydantic ValidationError
         print(f'Invalid configuration: {exc}')
         code=3
     except Exception as exc:

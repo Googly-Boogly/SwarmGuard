@@ -272,3 +272,47 @@ runs INTERRUPTED. Browser live execution remains disabled. The original observab
 GET-only and mode=ro; research query handlers also use its separate read-only connection.
 The four `/research/*` React pages extend the same frontend and component system. CLI exports and
 console records use separate databases. See STAGE5_RESEARCH_DESIGN.md and REPRODUCIBILITY.md.
+
+## Stage 6: framework adapters, runtime middleware, regression
+
+```
+framework agent ─> framework-native gateway tool (BaseTool / StructuredTool in ToolNode / FunctionTool in ToolAgent)
+                     └─ SwarmGuardClient (bound) ─> IntegrationRuntime.submit ─> AgentGatewayClient ─> CapabilityGateway ─> ...
+framework hooks (event bus / stream updates / intervention handler) ─> CanonicalEvent(FRAMEWORK_REPORTED) ─> integration_events
+gateway decisions ─> CanonicalEvent(GATEWAY_VERIFIED) + existing DecisionRecord / workflow history / graph
+IntegrationRuntime.assess ─> ObservationBuilder ─> LocalActionMonitor / GlobalWorkflowMonitor (shared RiskAnalyzer)
+```
+
+- `integrations/`: `FrameworkAdapter` contract (`initialize`, `register_agent`, `make_tool`, `invoke`,
+  `normalize_event`, `evaluate_tool_request`, `run_pipeline`, `close`), registry with version detection and
+  capability declaration, strict `IntegrationConfig`, `IdentityMapping`, canonical event schema, and the four
+  adapters. No adapter contains safety logic.
+- `runtime/`: `IntegrationRuntime` (host-owned binding, audit budget, request-ID derivation, canonical
+  events, advisory assessments) and the read-only `TrustedToolRegistry` derived from the policy.
+- `sdk/`: agent-facing bound `SwarmGuardClient`/`ToolInvocation`/`ToolResult`; host-only `LocalSwarmGuard`.
+- `evaluation/framework_comparison.py` (`swarmguard_core`), `evaluation/runtime_overhead.py`.
+- `regression/`: `BaselineManager` (host authority token), `RegressionPolicy`, `compare_evaluations`,
+  `run_regression`. Records persist through `PlatformRepository` with CAS versions.
+- Console: `console/platform.py` jobs and routes; integration runs needing approval use the existing approval queue.
+
+Integrated workflows reuse the existing models: framework proposals are ordinary `ActionProposal`s,
+so workflow history, resource versions, graph reconstruction, local/global monitors, the council and
+WorkflowGuard apply unchanged. There is no per-framework safety logic.
+
+## Stage 7: separated services
+
+- `swarmguard/authentication/`: Ed25519 keys, `CredentialIssuer` (host), `ServiceIdentityVerifier` (gateway),
+  `IdentityAdministration`. `swarmguard/console/auth.py`: role-based operator accounts.
+- `swarmguard/security/remote_gateway.py`: authenticated, idempotent remote front of the unchanged `CapabilityGateway`.
+- `swarmguard/execution/`: grants, `RemoteExecutionBackend` (gateway side, `ExecutorChannel` injected),
+  `ProtectedExecutor` (executor side). `CapabilityGateway(execution_backend=...)` switches execution out of process;
+  without it Stages 1–6 keep the in-process HMAC-permit executor.
+- `swarmguard/audit/`: hash chain (written by `EventRepository.insert`) and verification/checkpoints.
+- `swarmguard/infrastructure/`: rate limits, metrics, health/readiness, gateway restart recovery.
+- `swarmguard/services/`: gateway and executor FastAPI apps, control plane, settings. Entry points with network
+  transport: `swarmguard_services/` (gateway/executor/control `*_main.py`, `http_channel.py`).
+- `swarmguard/storage/`: SQLite or PostgreSQL (`Database`), forward migrations, Stage 7 repositories,
+  `postgres_roles.py` grants.
+- `swarmguard_agent/runtime.py`: untrusted client. `deployment/`: Dockerfiles, Compose, Postgres init, verification.
+
+See [STAGE7_SECURITY_ARCHITECTURE.md](STAGE7_SECURITY_ARCHITECTURE.md) for trust zones and the request path.

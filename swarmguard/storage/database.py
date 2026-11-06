@@ -1,4 +1,4 @@
-"""SQLite persistence.
+"""SQLite / PostgreSQL persistence.
 
 Only trusted components (monitor, workspace, approval manager, tool executor)
 hold a ``Database`` reference. Agents never do.
@@ -14,8 +14,10 @@ Agents never hold a ``Database`` reference. All SQL lives in this module and in
 
 from __future__ import annotations
 
+import os
 import sqlite3
 import threading
+from datetime import UTC, datetime
 from collections.abc import Iterator, Sequence
 from contextlib import contextmanager
 from pathlib import Path
@@ -274,45 +276,321 @@ CREATE TABLE IF NOT EXISTS integration_events (
     external_event_id TEXT, record_json TEXT NOT NULL, UNIQUE(integration_id, external_event_id)
 );
 """
-SCHEMA_VERSION = "6"
+SCHEMA_VERSION = "7"
+
+# Stage 7 (Boundaries B/C): service identities, protected-operation state, control state and the
+# audit hash chain. Forward-only: never drops or rewrites earlier tables.
+STAGE7_SCHEMA = """
+CREATE TABLE IF NOT EXISTS audit_chain (
+    seq INTEGER PRIMARY KEY,
+    event_id TEXT NOT NULL UNIQUE,
+    payload_hash TEXT NOT NULL,
+    previous_hash TEXT NOT NULL,
+    event_hash TEXT NOT NULL UNIQUE,
+    chained_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS service_runtimes (
+    runtime_id TEXT PRIMARY KEY,
+    description TEXT NOT NULL,
+    status TEXT NOT NULL CHECK (status IN ('ACTIVE', 'REVOKED')),
+    created_at TEXT NOT NULL,
+    created_by TEXT NOT NULL,
+    revoked_at TEXT,
+    revoked_by TEXT,
+    revocation_reason TEXT
+);
+CREATE TABLE IF NOT EXISTS agent_bindings (
+    agent_id TEXT PRIMARY KEY,
+    runtime_id TEXT NOT NULL REFERENCES service_runtimes(runtime_id),
+    role TEXT NOT NULL,
+    workflows_json TEXT NOT NULL,
+    capabilities_json TEXT NOT NULL,
+    status TEXT NOT NULL CHECK (status IN ('ACTIVE', 'REVOKED')),
+    created_at TEXT NOT NULL,
+    created_by TEXT NOT NULL,
+    revoked_at TEXT,
+    revoked_by TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_bindings_runtime ON agent_bindings(runtime_id);
+CREATE TABLE IF NOT EXISTS revoked_credentials (
+    jti TEXT PRIMARY KEY,
+    revoked_at TEXT NOT NULL,
+    revoked_by TEXT NOT NULL,
+    reason TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS protected_operations (
+    operation_id TEXT PRIMARY KEY,
+    agent_id TEXT NOT NULL,
+    runtime_id TEXT NOT NULL,
+    request_id TEXT NOT NULL,
+    request_digest TEXT NOT NULL,
+    workflow_id TEXT NOT NULL,
+    tool TEXT NOT NULL,
+    action_id TEXT UNIQUE,
+    authorization_digest TEXT,
+    expected_json TEXT NOT NULL DEFAULT '{}',
+    state TEXT NOT NULL CHECK (state IN ('PENDING','AUTHORIZED','EXECUTING','SUCCEEDED','FAILED','BLOCKED','UNKNOWN')),
+    reason_code TEXT,
+    response_json TEXT,
+    result_json TEXT,
+    grant_expires_at TEXT,
+    correlation_id TEXT NOT NULL,
+    version INTEGER NOT NULL,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    UNIQUE (agent_id, request_id)
+);
+CREATE INDEX IF NOT EXISTS idx_operations_state ON protected_operations(state);
+CREATE INDEX IF NOT EXISTS idx_operations_workflow ON protected_operations(workflow_id);
+CREATE TABLE IF NOT EXISTS operation_transitions (
+    operation_id TEXT NOT NULL REFERENCES protected_operations(operation_id),
+    version INTEGER NOT NULL,
+    from_state TEXT,
+    to_state TEXT NOT NULL,
+    actor TEXT NOT NULL,
+    reason_code TEXT,
+    occurred_at TEXT NOT NULL,
+    PRIMARY KEY (operation_id, version)
+);
+CREATE TABLE IF NOT EXISTS control_state (
+    key TEXT PRIMARY KEY,
+    value_json TEXT NOT NULL,
+    version INTEGER NOT NULL,
+    updated_at TEXT NOT NULL,
+    updated_by TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS service_heartbeats (
+    service TEXT PRIMARY KEY,
+    status TEXT NOT NULL,
+    detail_json TEXT NOT NULL,
+    heartbeat_at TEXT NOT NULL
+);
+"""
+
+# Ordered, forward-only migrations. Every statement is idempotent (IF NOT EXISTS) so that
+# databases created by earlier stages upgrade in place without data loss.
+MIGRATIONS: tuple[tuple[int, str, str], ...] = (
+    (1, "stage1_6_base_schema", SCHEMA),
+    (2, "stage7_security_infrastructure", STAGE7_SCHEMA),
+)
+LATEST_MIGRATION = MIGRATIONS[-1][0]
+
+_PG_ADVISORY_LOCK = 7_431_007  # one database-wide writer lock: PostgreSQL equivalent of BEGIN IMMEDIATE
+
+try:  # optional dependency: only required for PostgreSQL URLs
+    import psycopg as _psycopg
+except ImportError:  # pragma: no cover - exercised only without the deploy extra
+    _psycopg = None
+
+INTEGRITY_ERRORS: tuple[type[BaseException], ...] = (sqlite3.IntegrityError,) + (
+    (_psycopg.IntegrityError,) if _psycopg else ())
+OPERATIONAL_ERRORS: tuple[type[BaseException], ...] = (sqlite3.OperationalError,) + (
+    (_psycopg.OperationalError, _psycopg.errors.UndefinedTable) if _psycopg else ())
+DATABASE_ERRORS: tuple[type[BaseException], ...] = (sqlite3.Error,) + ((_psycopg.Error,) if _psycopg else ())
+
+
+def is_postgres_url(path: str | Path) -> bool:
+    return str(path).startswith(("postgresql://", "postgres://"))
+
+
+def redact_dsn(path: str | Path) -> str:
+    """Display form of a database location; never includes credentials."""
+    text = str(path)
+    if not is_postgres_url(text):
+        return text
+    scheme, rest = text.split("://", 1)
+    host = rest.rsplit("@", 1)[-1]
+    return f"{scheme}://***@{host}"
+
+
+class _Row(tuple):
+    """sqlite3.Row-compatible row: index, column-name and ``keys()`` access."""
+
+    _names: tuple[str, ...] = ()
+
+    def __getitem__(self, key: Any) -> Any:  # type: ignore[override]
+        if isinstance(key, str):
+            return tuple.__getitem__(self, self._names.index(key))
+        return tuple.__getitem__(self, key)
+
+    def keys(self) -> list[str]:
+        return list(self._names)
+
+
+def _pg_row_factory(cursor: Any) -> Any:
+    names = tuple(d.name for d in (cursor.description or ()))
+    row_type = type("Row", (_Row,), {"_names": names})
+    return lambda values: row_type(values)
+
+
+def _translate(sql: str, has_params: bool) -> str:
+    """SQLite dialect -> PostgreSQL: ``?`` placeholders outside literals; ``%`` escaped."""
+    out, quoted = [], False
+    for ch in sql:
+        if ch == "'":
+            quoted = not quoted
+            out.append(ch)
+        elif ch == "%" and has_params:
+            out.append("%%")
+        elif ch == "?" and not quoted:
+            out.append("%s")
+        else:
+            out.append(ch)
+    text = "".join(out)
+    text = text.replace("INTEGER PRIMARY KEY AUTOINCREMENT", "BIGSERIAL PRIMARY KEY")
+    text = text.replace("DO UPDATE SET value = value + 1", "DO UPDATE SET value = counters.value + 1")
+    return text
+
+
+def _pg_params(params: Sequence[Any]) -> tuple[Any, ...]:
+    # SQLite stores booleans as INTEGER; keep the same representation in PostgreSQL.
+    return tuple(int(p) if isinstance(p, bool) else p for p in params)
+
+
+class _PgConnection:
+    """Minimal sqlite3.Connection-compatible facade over one psycopg connection."""
+
+    def __init__(self, conn: Any) -> None:
+        self._conn = conn
+
+    def execute(self, sql: str, params: Sequence[Any] = ()) -> Any:
+        has = bool(params)
+        return self._conn.execute(_translate(sql, has), _pg_params(params) if has else None)
+
+    def executescript(self, script: str) -> None:
+        self._conn.execute(_translate(script, False))
+
+    def close(self) -> None:
+        self._conn.close()
+
+
+def _statements(script: str) -> list[str]:
+    """Split a schema script into statements (schema scripts contain no ';' inside literals)."""
+    lines = [line.split("--", 1)[0] for line in script.splitlines()]
+    return [s.strip() for s in "\n".join(lines).split(";") if s.strip()]
+
+
+def _pg_password() -> str | None:
+    path = os.environ.get("SWARMGUARD_DB_PASSWORD_FILE")
+    if path:
+        return Path(path).read_text(encoding="utf-8").strip()
+    return None
 
 
 class Database:
-    """Thin, thread-safe wrapper around a single SQLite connection."""
+    """Thin, thread-safe wrapper around one SQLite or PostgreSQL connection.
 
-    def __init__(self, path: str | Path = ":memory:", *, read_only: bool = False) -> None:
+    SQLite (default) serves local development and deterministic tests. PostgreSQL is selected by
+    a ``postgresql://`` URL; passwords come from ``SWARMGUARD_DB_PASSWORD_FILE`` (never the URL),
+    so ``path`` is safe to pass between trusted components. Outermost transactions take one
+    database-wide writer lock in both engines, so check-then-act code keeps its semantics.
+    """
+
+    def __init__(self, path: str | Path = ":memory:", *, read_only: bool = False, migrate: bool = True,
+                 connect_timeout: int = 5) -> None:
         self.path = str(path)
         self.read_only = read_only
+        self.engine = "postgresql" if is_postgres_url(self.path) else "sqlite"
         self._lock = threading.RLock()
         self._depth = 0
-        if read_only:
+        if self.engine == "postgresql":
+            if _psycopg is None:
+                raise RuntimeError("PostgreSQL URL configured but psycopg is not installed (pip install -e '.[deploy]')")
+            conn = _psycopg.connect(self.path, autocommit=True, row_factory=_pg_row_factory,
+                                    connect_timeout=connect_timeout, password=_pg_password(),
+                                    application_name="swarmguard")
+            if read_only:
+                conn.execute("SET SESSION CHARACTERISTICS AS TRANSACTION READ ONLY")
+            self._conn: Any = _PgConnection(conn)
+        elif read_only:
             uri = f"file:{Path(self.path).resolve()}?mode=ro"
             self._conn = sqlite3.connect(uri, uri=True, check_same_thread=False, isolation_level=None)
         else:
             self._conn = sqlite3.connect(self.path, check_same_thread=False, isolation_level=None)
-        self._conn.row_factory = sqlite3.Row
-        if not read_only:
-            self._conn.executescript(SCHEMA)
-            self._conn.execute(
-                "INSERT INTO schema_info(key, value) VALUES ('schema_version', ?) "
-                "ON CONFLICT(key) DO UPDATE SET value = excluded.value", (SCHEMA_VERSION,)
-            )
+        if self.engine == "sqlite":
+            self._conn.row_factory = sqlite3.Row
+            self._conn.execute("PRAGMA foreign_keys = ON")
+            if not read_only:
+                busy = int(os.environ.get("SWARMGUARD_DB_BUSY_TIMEOUT_MS", "5000"))
+                self._conn.execute(f"PRAGMA busy_timeout = {max(0, min(busy, 60000))}")
+        if migrate and not read_only:
+            self.apply_migrations()
+
+    # ------------------------------------------------------------------ migrations
+
+    def apply_migrations(self) -> list[int]:
+        """Apply pending forward migrations; returns the versions applied now."""
+        applied_now: list[int] = []
+        with self.transaction() as conn:
+            conn.execute("CREATE TABLE IF NOT EXISTS schema_migrations (version INTEGER PRIMARY KEY, "
+                         "name TEXT NOT NULL, applied_at TEXT NOT NULL)")
+            done = {int(r[0]) for r in conn.execute("SELECT version FROM schema_migrations").fetchall()}
+            for version, name, script in MIGRATIONS:
+                # Base schema is re-applied idempotently so earlier-stage databases gain new tables.
+                if version in done and version != 1:
+                    continue
+                for statement in _statements(script):
+                    if statement:
+                        conn.execute(statement)
+                if version not in done:
+                    conn.execute("INSERT INTO schema_migrations(version, name, applied_at) VALUES (?, ?, ?)",
+                                 (version, name, datetime.now(UTC).isoformat()))
+                    applied_now.append(version)
+            conn.execute("INSERT INTO schema_info(key, value) VALUES ('schema_version', ?) "
+                         "ON CONFLICT(key) DO UPDATE SET value = excluded.value", (SCHEMA_VERSION,))
+        return applied_now
+
+    def applied_migrations(self) -> list[int]:
+        try:
+            return sorted(int(r[0]) for r in self.fetchall("SELECT version FROM schema_migrations"))
+        except OPERATIONAL_ERRORS:
+            return []
+
+    def pending_migrations(self) -> list[int]:
+        applied = set(self.applied_migrations())
+        return [v for v, _, _ in MIGRATIONS if v not in applied]
+
+    # ------------------------------------------------------------------ connection
+
+    @property
+    def display_path(self) -> str:
+        return redact_dsn(self.path)
+
+    def ping(self) -> bool:
+        try:
+            self.fetchone("SELECT 1")
+            return True
+        except DATABASE_ERRORS:
+            return False
 
     def close(self) -> None:
         with self._lock:
             self._conn.close()
 
     @contextmanager
-    def transaction(self) -> Iterator[sqlite3.Connection]:
+    def transaction(self) -> Iterator[Any]:
         """Atomic unit of work. Nested calls use savepoints.
 
-        The outermost level uses ``BEGIN IMMEDIATE`` so that validation and
-        protected execution inside one transaction see a stable snapshot.
+        The outermost level uses ``BEGIN IMMEDIATE`` (SQLite) or ``BEGIN`` plus a transaction-scoped
+        advisory lock (PostgreSQL), so validation and protected execution see a stable snapshot and
+        concurrent writers in other processes are serialized.
         """
         with self._lock:
             depth = self._depth
             savepoint = f"sp_{depth}"
-            self._conn.execute("BEGIN IMMEDIATE" if depth == 0 else f"SAVEPOINT {savepoint}")
+            if depth == 0:
+                if self.engine == "postgresql":
+                    self._conn.execute("BEGIN")
+                    if not self.read_only:
+                        try:
+                            self._conn.execute(f"SELECT pg_advisory_xact_lock({_PG_ADVISORY_LOCK})")
+                        except BaseException:
+                            self._conn.execute("ROLLBACK")
+                            raise
+                else:
+                    self._conn.execute("BEGIN IMMEDIATE")
+            else:
+                self._conn.execute(f"SAVEPOINT {savepoint}")
             self._depth += 1
             try:
                 yield self._conn
@@ -321,22 +599,22 @@ class Database:
                 if depth == 0:
                     self._conn.execute("ROLLBACK")
                 else:
-                    self._conn.execute(f"ROLLBACK TO {savepoint}")
-                    self._conn.execute(f"RELEASE {savepoint}")
+                    self._conn.execute(f"ROLLBACK TO SAVEPOINT {savepoint}")
+                    self._conn.execute(f"RELEASE SAVEPOINT {savepoint}")
                 raise
             else:
                 self._depth -= 1
-                self._conn.execute("COMMIT" if depth == 0 else f"RELEASE {savepoint}")
+                self._conn.execute("COMMIT" if depth == 0 else f"RELEASE SAVEPOINT {savepoint}")
 
-    def execute(self, sql: str, params: Sequence[Any] = ()) -> sqlite3.Cursor:
+    def execute(self, sql: str, params: Sequence[Any] = ()) -> Any:
         with self._lock:
             return self._conn.execute(sql, params)
 
-    def fetchone(self, sql: str, params: Sequence[Any] = ()) -> sqlite3.Row | None:
+    def fetchone(self, sql: str, params: Sequence[Any] = ()) -> Any:
         with self._lock:
             return self._conn.execute(sql, params).fetchone()
 
-    def fetchall(self, sql: str, params: Sequence[Any] = ()) -> list[sqlite3.Row]:
+    def fetchall(self, sql: str, params: Sequence[Any] = ()) -> list[Any]:
         with self._lock:
             return list(self._conn.execute(sql, params).fetchall())
 

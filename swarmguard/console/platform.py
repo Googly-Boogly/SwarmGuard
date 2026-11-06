@@ -227,12 +227,12 @@ def register_platform_routes(app: FastAPI,auth: OperatorAuth) -> None:
 
     @app.post('/api/integrations/runs',status_code=202)
     async def start_integration(body: IntegrationLaunch,request: Request) -> dict[str,Any]:
-        auth.require(request)
+        auth.require(request, "RESEARCHER")
         return app.state.platform.start('integration',body)
 
     @app.post('/api/evaluation/frameworks/runs',status_code=202)
     async def start_evaluation(body: ApplicationConfig,request: Request) -> dict[str,Any]:
-        auth.require(request)
+        auth.require(request, "RESEARCHER")
         return app.state.platform.start('evaluation',body)
 
     @app.get('/api/evaluation/frameworks')
@@ -247,7 +247,7 @@ def register_platform_routes(app: FastAPI,auth: OperatorAuth) -> None:
 
     @app.post('/api/platform/jobs/{job_id}/cancel')
     async def cancel(job_id: str,body: Command,request: Request) -> dict[str,bool]:
-        auth.require(request)
+        auth.require(request, "RESEARCHER")
         app.state.platform.cancel(job_id)
         return {'cancel_requested':True}
 
@@ -258,7 +258,7 @@ def register_platform_routes(app: FastAPI,auth: OperatorAuth) -> None:
 
     @app.post('/api/regression/baselines',status_code=201)
     async def designate(body: BaselineDesignation,request: Request) -> dict[str,Any]:
-        auth.require(request)
+        auth.require(request, "RESEARCHER")
         manager=app.state.platform.baselines
         try:
             return manager.designate(body.experiment_id,authority=manager.host_authority(),principal=OPERATOR)
@@ -267,7 +267,7 @@ def register_platform_routes(app: FastAPI,auth: OperatorAuth) -> None:
 
     @app.post('/api/regression/runs',status_code=202)
     async def regression_start(body: RegressionLaunch,request: Request) -> dict[str,Any]:
-        auth.require(request)
+        auth.require(request, "RESEARCHER")
         return app.state.platform.start('regression',body)
 
     @app.get('/api/regression/runs')

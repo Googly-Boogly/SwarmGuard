@@ -78,8 +78,9 @@ class FrameworkAdapter(ABC):
     async def evaluate_tool_request(self, agent: object, invocation: ToolInvocation) -> ToolResult:
         return await self.runtime.client(agent).execute_protected_tool(invocation)
 
-    async def run_pipeline(self, stages: list[Callable[[], Awaitable[None]]]) -> None:
-        for stage in stages:
+    async def run_pipeline(self, stages: list[tuple[object, Callable[[], Awaitable[None]]]]) -> None:
+        """Run host-defined stages in order; each pair is (registered owner object, stage)."""
+        for _, stage in stages:
             await stage()
 
     async def close(self) -> None:

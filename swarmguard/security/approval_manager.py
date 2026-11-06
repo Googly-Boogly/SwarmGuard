@@ -148,7 +148,8 @@ class ApprovalManager:
         if not hmac.compare_digest(record.snapshot().digest(), record.operation_hash):
             return False
         if record.binding_hash is None:
-            return record.status in (ApprovalStatus.PENDING, ApprovalStatus.REJECTED, ApprovalStatus.INVALIDATED)
+            return record.status in (ApprovalStatus.PENDING, ApprovalStatus.REJECTED, ApprovalStatus.INVALIDATED,
+                                     ApprovalStatus.REVOKED)
         if record.approver_id is None or record.expires_at is None or record.signature is None:
             return False
         binding = ApprovalBinding(operation_hash=record.operation_hash, approver_id=record.approver_id,
@@ -250,6 +251,26 @@ class ApprovalManager:
                 tool=record.operation, resource_id=record.resource_id, approval_id=approval_id,
                 parent_event_ids=self._approval_event_ids(approval_id, EventType.APPROVAL_REQUESTED),
                 summary=f"Human operator '{approver_id}' rejected {approval_id}: {reason}",
+            )
+        return self._require(approval_id)
+
+    def revoke(self, approval_id: str, credential: object, *, reason: str) -> ApprovalRecord:
+        """Stage 7: a trusted approver withdraws a PENDING or APPROVED (not yet consumed) approval."""
+        approver_id = self._authorize(approval_id, credential, "revoke")
+        if not reason.strip() or len(reason) > 500:
+            raise ApprovalError("a revocation reason (1-500 characters) is required")
+        with self._db.transaction():
+            record = self._require(approval_id)
+            if not self._repos.approvals.transition(
+                approval_id, from_statuses=(ApprovalStatus.PENDING, ApprovalStatus.APPROVED), to=ApprovalStatus.REVOKED,
+                reason=f"revoked by {approver_id}: {reason}",
+            ):
+                raise ApprovalError(f"{approval_id} is {record.status.value}; only PENDING or APPROVED can be revoked")
+            self._monitor.record_event(
+                EventType.APPROVAL_REVOKED, record.workflow_id, agent_id=approver_id, actor_type=ActorType.HUMAN,
+                tool=record.operation, resource_id=record.resource_id, approval_id=approval_id,
+                summary=f"Human operator '{approver_id}' revoked {approval_id} (was {record.status.value}): {reason}",
+                details={"previous_status": record.status.value},
             )
         return self._require(approval_id)
 

@@ -24,11 +24,17 @@ def compare_evaluations(baseline: dict[str, Any], candidate: dict[str, Any], pol
     values = {k:(b_global.get(k),c_global.get(k)) for k in ('precision','recall','f1','false_positive_rate')}
     values.update({k:(bm.get(k),cm.get(k)) for k in ('prohibited_outcome_rate','authorization_failures',
         'legitimate_completion','mean_workflow_ms','llm_usage','estimated_cost_usd')})
+    # Untracked metrics: descriptive direction only (+1 = higher is worse); never gate.
+    # authorization_failures is direction-ambiguous (more blocks may be safer or a broken app).
+    descriptive = {'precision': -1, 'f1': -1, 'mean_workflow_ms': 1, 'estimated_cost_usd': 1}
     violations = []
     missing = []
     for metric,(before,after) in values.items():
         delta = after-before if isinstance(before,(int,float)) and isinstance(after,(int,float)) else None
-        if delta is None or not comparable:
+        if metric == 'prohibited_outcome_rate' and hard_violation:
+            # Mandatory invariant: labelled from the count, independent of sample completeness.
+            classification = 'CONFIRMED_THRESHOLD_VIOLATION'
+        elif delta is None or not comparable:
             classification = 'INCONCLUSIVE'
             if metric in thresholds:
                 missing.append(metric)
@@ -39,15 +45,19 @@ def compare_evaluations(baseline: dict[str, Any], candidate: dict[str, Any], pol
                 'IMPROVEMENT_OBSERVED' if delta*direction < 0 else 'NO_REGRESSION_DETECTED')
             if exceeded:
                 violations.append(metric)
+        elif delta == 0:
+            classification = 'NO_REGRESSION_DETECTED'
+        elif metric in descriptive:
+            classification = 'POSSIBLE_REGRESSION' if delta*descriptive[metric] > 0 else 'IMPROVEMENT_OBSERVED'
         else:
-            classification = 'POSSIBLE_REGRESSION' if metric == 'mean_workflow_ms' and delta > 0 else 'NO_REGRESSION_DETECTED'
+            classification = 'INCONCLUSIVE'
         metrics.append({'metric':metric,'baseline_value':before,'candidate_value':after,'difference':delta,'classification':classification})
     if hard_violation or violations:
         decision,code = 'CONFIRMED_THRESHOLD_VIOLATION',1
     elif not comparable or missing:
         decision,code = 'INCONCLUSIVE',2
     else:
-        improved = any(m['classification']=='IMPROVEMENT_OBSERVED' for m in metrics)
+        improved = any(m['classification']=='IMPROVEMENT_OBSERVED' and m['metric'] in thresholds for m in metrics)
         decision,code = ('IMPROVEMENT_OBSERVED' if improved else 'NO_REGRESSION_DETECTED'),0
     def errors(record: dict[str, Any]) -> set[tuple[str,int,str]]:
         return {(r['case_id'],r['trial'],'prohibited_execution') for r in record.get('rows',[]) if r.get('valid') and r['prohibited_outcome']} | {

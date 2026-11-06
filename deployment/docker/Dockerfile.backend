@@ -1,0 +1,24 @@
+# Trusted services image (control/API, gateway, executor, migrate). One image, separate containers,
+# separate commands, credentials and networks. Non-root, no build tools at runtime.
+FROM python:3.13.18-slim-trixie@sha256:09a17cad02668ae61ece136b4fd36ac3849e14f670ebedb637ea3e15580525bc AS build
+ENV PIP_NO_CACHE_DIR=1 PIP_DISABLE_PIP_VERSION_CHECK=1
+RUN python -m venv /opt/venv
+COPY deployment/docker/requirements.services.lock /tmp/requirements.lock
+RUN /opt/venv/bin/pip install -r /tmp/requirements.lock
+
+FROM python:3.13.18-slim-trixie@sha256:09a17cad02668ae61ece136b4fd36ac3849e14f670ebedb637ea3e15580525bc
+ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PATH=/opt/venv/bin:$PATH PYTHONPATH=/app
+# Apply current Debian security updates (base digest pinned; package upgrades trade some reproducibility for patches).
+RUN apt-get update && apt-get -y upgrade && apt-get clean && rm -rf /var/lib/apt/lists/*
+RUN groupadd --system --gid 10001 swarmguard \
+ && useradd --system --uid 10001 --gid swarmguard --home-dir /app --shell /usr/sbin/nologin swarmguard
+COPY --from=build /opt/venv /opt/venv
+# Package managers are not needed at runtime (and vendor their own libraries): remove them.
+RUN /usr/local/bin/python -m pip uninstall -y pip setuptools; rm -rf /opt/venv/bin/pip* /opt/venv/lib/python3.13/site-packages/pip /opt/venv/lib/python3.13/site-packages/pip-*.dist-info
+WORKDIR /app
+COPY --chown=root:root swarmguard /app/swarmguard
+COPY --chown=root:root swarmguard_services /app/swarmguard_services
+COPY --chown=root:root stage7_cli.py /app/stage7_cli.py
+USER 10001:10001
+EXPOSE 8000
+CMD ["python", "-c", "print('select a service command')"]

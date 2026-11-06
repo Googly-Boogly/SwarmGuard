@@ -8,10 +8,13 @@ version = "0.5.0"
 description = "SwarmGuard: adaptive synthetic multi-agent safety research and oversight"
 readme = "README.md"
 requires-python = ">=3.11"
-dependencies = ["fastapi>=0.115", "pydantic>=2.7,<3", "uvicorn>=0.30", "websockets>=14", "openai>=2.30,<4", "python-dotenv>=1.0"]
+dependencies = ["fastapi>=0.115", "pydantic>=2.7,<3", "uvicorn>=0.30", "websockets>=14", "openai>=2.30,<4", "python-dotenv>=1.0",
+                "pyjwt[crypto]>=2.10,<3", "cryptography>=44", "httpx>=0.27"]
 
 [project.optional-dependencies]
 test = ["pytest>=8", "httpx>=0.27"]
+# Stage 7 multi-service deployment (PostgreSQL driver); SQLite needs nothing extra.
+deploy = ["psycopg[binary]>=3.2,<4"]
 langgraph = ["langgraph>=1.2.20,<2", "langchain-core>=1.7.6,<2"]
 autogen = ["autogen-core>=0.7.5,<0.8", "autogen-agentchat>=0.7.5,<0.8"]
 crewai = ["crewai>=1.15.36,<1.16; python_version < '3.14'"]

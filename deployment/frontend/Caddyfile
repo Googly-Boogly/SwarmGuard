@@ -1,0 +1,31 @@
+{
+	admin off
+	auto_https off
+	persist_config off
+}
+
+:8080 {
+	encode gzip
+	header {
+		Content-Security-Policy "default-src 'self'; connect-src 'self' ws://localhost:8080 ws://127.0.0.1:8080; img-src 'self' data:; style-src 'self' 'unsafe-inline'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'"
+		X-Content-Type-Options nosniff
+		Referrer-Policy no-referrer
+		X-Frame-Options DENY
+		-Server
+	}
+	# Upstream console/control service; hardened stack default api:8000, local stack console:7676.
+	handle /api/* {
+		reverse_proxy {$SWARMGUARD_API_UPSTREAM:api:8000}
+	}
+	handle /ws/* {
+		reverse_proxy {$SWARMGUARD_API_UPSTREAM:api:8000}
+	}
+	handle /observe/* {
+		reverse_proxy {$SWARMGUARD_API_UPSTREAM:api:8000}
+	}
+	handle {
+		root * /srv
+		try_files {path} /index.html
+		file_server
+	}
+}

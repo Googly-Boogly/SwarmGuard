@@ -1082,6 +1082,8 @@ export interface components {
             csrf_token?: string | null;
             /** Login Available */
             login_available: boolean;
+            /** Roles (Stage 7; server-assigned) */
+            roles?: string[];
         };
         /** ValidationError */
         ValidationError: {

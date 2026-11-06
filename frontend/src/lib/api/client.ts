@@ -28,7 +28,7 @@ export async function request<T>(path: string, options: RequestInit = {}, schema
  if (schema) { const parsed = schema.safeParse(raw); if (!parsed.success) throw new Error('Backend returned an invalid response. Refresh or inspect System Status.'); return parsed.data }
  return raw as T
 }
-export const sessionSchema = z.object({ authenticated: z.boolean(), operator_id: z.string().nullish(), csrf_token: z.string().nullish(), login_available: z.boolean() })
+export const sessionSchema = z.object({ authenticated: z.boolean(), operator_id: z.string().nullish(), csrf_token: z.string().nullish(), login_available: z.boolean(), roles: z.array(z.string()).optional() })
 export const graphSchema = z.object({ workflow_id: z.string(), nodes: z.array(z.object({ node_id: z.string(), node_type: z.string(), label: z.string(), ref_table: z.string().nullish(), ref_id: z.string().nullish(), event_ids: z.array(z.string()), attributes: z.record(z.string(), z.unknown()) })), edges: z.array(z.object({ source: z.string(), target: z.string(), edge_type: z.string(), causal: z.boolean(), evidence_event_ids: z.array(z.string()) })) })
 export const jobSchema = z.object({ job_id: z.string(), status: z.string(), workflow_ids: z.array(z.string()) }).passthrough()
 export const eventSchema = z.object({ event_id: z.string(), seq: z.number().int().positive(), created_at: z.string(), workflow_id: z.string(), event_type: z.string(), summary: z.string() }).passthrough()
