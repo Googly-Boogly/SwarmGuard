@@ -3,7 +3,7 @@ from __future__ import annotations
 import html
 import json
 from typing import Any
-from swarmguard.research.hypothesis_registry import questions
+from swarmguard.research.hypothesis_registry import question_for
 from swarmguard.research.validation import validate_result
 
 SECTIONS = ("Title", "Abstract draft", "Research question", "Hypothesis", "Experimental setup", "Dataset description",
@@ -18,7 +18,7 @@ def generate_report(record: dict[str, Any], sections: list[str] | None = None, *
     selected = sections or list(SECTIONS)
     if len(set(selected)) != len(selected) or set(selected) - set(SECTIONS):
         raise ValueError("unknown or duplicate report section")
-    q = next(q for q in questions() if q["research_question_id"] == record["config"]["question"])
+    q = question_for(record)
     if concise:
         return _concise_report(record, validation, q)
     dumps = lambda obj: json.dumps(obj, indent=2, sort_keys=True, ensure_ascii=False, allow_nan=False)

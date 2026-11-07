@@ -58,6 +58,9 @@ class ExperimentConfig(StrictModel):
 
 def validate_config(config: ExperimentConfig, datasets: DatasetRegistry) -> dict[str, Any]:
     config = ExperimentConfig.model_validate(config.model_dump())
+    from swarmguard.research.hypothesis_registry import active_question_ids
+    if config.question not in active_question_ids():
+        raise ValueError(f"research question {config.question} is not in the current registry")
     record = datasets.validate_current(config.dataset, config.dataset_version)
     definition = DatasetDefinition.model_validate(record["definition"])
     if len(definition.scenarios) > config.max_dataset_size or len(definition.scenarios) * config.trials > 60:

@@ -5,6 +5,7 @@ import copy
 from typing import Any
 from swarmguard.clock import Clock, SystemClock
 from swarmguard.datasets.registry import DatasetRegistry
+from swarmguard.research.hypothesis_registry import REGISTRY_VERSION as QUESTION_REGISTRY_VERSION
 from swarmguard.ethics.prompts import prompt_manifest
 from swarmguard.evaluation.adaptive_runner import evaluate_candidate, intervention_comparison
 from swarmguard.evaluation.failure_analysis import analyze_failures
@@ -48,6 +49,7 @@ class Laboratory:
             "source_tree_hash": source_hash(), "environment": environment(), "prompts": prompt_manifest(),
             "agent_prompt_hashes": {r: prompt_hash(r) for r in ("coordinator", "research", "operations")},
             "authorization_policy_version": DEFAULT_POLICY.version, "ruleset_version": RULESET_VERSION,
+            "question_registry_version": QUESTION_REGISTRY_VERSION,
             "model": "mock-deterministic-v1", "provider": "mock", "execution_mode": config.mode,
             "agent_behavior": "deterministic observation-driven mock policy" if config.mode == "MOCK_AUTONOMOUS" else "scripted templates",
             "aggregation": config.aggregation, "sampling": {"seed": config.seed, "temperature": None, "max_output_tokens": 800},

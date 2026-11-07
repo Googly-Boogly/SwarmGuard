@@ -1,0 +1,68 @@
+/* RQ1 laboratory. Uses the console's existing tokens only (--panel, --border, --text, --muted, --accent …). */
+.rq1-tabs{display:flex;gap:4px;flex-wrap:wrap;border-bottom:1px solid var(--border);margin:0 0 18px}
+.rq1-tabs button{background:none;border:0;border-bottom:2px solid transparent;color:var(--muted);padding:10px 12px;font-size:11px;font-weight:550;letter-spacing:.3px}
+.rq1-tabs button[aria-selected="true"]{color:var(--text);border-bottom-color:var(--accent)}
+.rq1-tabs button:hover{color:var(--text)}
+.rq1-body{padding:16px 20px;font-size:12px;line-height:1.6}
+.rq1-body p{margin:0 0 10px}
+.rq1-grid{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(240px,1fr))}
+.rq1-grid.two{grid-template-columns:repeat(auto-fit,minmax(320px,1fr))}
+.rq1-kv{display:grid;grid-template-columns:minmax(120px,max-content) 1fr;gap:6px 14px;font-size:11px;margin:0}
+.rq1-kv dt{color:var(--muted)}
+.rq1-kv dd{margin:0;overflow-wrap:anywhere}
+.rq1-card{border:1px solid var(--border);border-radius:7px;background:var(--panel-alt);padding:14px}
+.rq1-card h3{margin:0 0 8px;font-size:12px}
+.rq1-card.diff{border-color:var(--accent);box-shadow:inset 3px 0 0 var(--accent)}
+.rq1-stat{display:flex;flex-direction:column;gap:4px}
+.rq1-stat strong{font-size:24px;font-weight:600}
+.rq1-stat small{color:var(--muted);font-size:10px}
+.rq1-progress{height:8px;border-radius:4px;background:var(--panel-alt);border:1px solid var(--border);overflow:hidden}
+.rq1-progress>span{display:block;height:100%;background:var(--accent);transition:width .3s}
+.rq1-stream{max-height:420px;overflow:auto;font-size:11px;border-top:1px solid var(--border)}
+.rq1-stream li{display:grid;grid-template-columns:70px 64px 150px 1fr;gap:10px;padding:6px 16px;border-bottom:1px solid var(--border)}
+.rq1-stream ol{list-style:none;margin:0;padding:0}
+.rq1-table-wrap{overflow:auto;max-height:620px}
+.rq1-table-wrap thead th{position:sticky;top:0;z-index:1}
+.rq1-table-wrap td{padding:8px 12px;border-bottom:1px solid var(--border);vertical-align:top;white-space:nowrap}
+.rq1-table-wrap tr.selected td{background:var(--hover)}
+.rq1-table-wrap th button{all:unset;cursor:pointer}
+.rq1-table-wrap th button:focus-visible{outline:2px solid var(--accent)}
+.rq1-expanded td{white-space:normal;background:var(--panel-alt)}
+.rq1-filters{display:flex;flex-wrap:wrap;gap:8px;align-items:end;padding:12px 16px}
+.rq1-filters label{display:flex;flex-direction:column;gap:3px;font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px}
+.rq1-filters select,.rq1-filters input:not([type=checkbox]):not([type=radio]),.rq1-form select,.rq1-form input:not([type=checkbox]):not([type=radio]){background:var(--panel-alt);color:var(--text);border:1px solid var(--border);border-radius:5px;padding:6px 8px;font-size:11px;min-width:110px}
+.rq1-form{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));padding:16px 20px}
+.rq1-form label{display:flex;flex-direction:column;gap:5px;font-size:10px;color:var(--muted)}
+.rq1-form fieldset{border:1px solid var(--border);border-radius:6px;padding:10px 12px;margin:0}
+.rq1-form legend{font-size:10px;color:var(--muted);padding:0 4px}
+.rq1-form .inline{display:flex;flex-direction:row;align-items:center;gap:8px;color:var(--text);font-size:11px;margin:3px 0}
+.rq1-form .inline input,.rq1-filters input[type=checkbox]{width:auto;min-width:0;margin:0;flex:none}
+.rq1-form fieldset small{display:block;margin-top:4px;line-height:1.5}
+.rq1-search{flex:1 1 220px;max-width:340px}
+.rq1-search .search{margin:0}
+.rq1-check{display:grid;grid-template-columns:90px 1fr;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);font-size:11px}
+.rq1-pager{display:flex;gap:8px;align-items:center;justify-content:space-between;padding:10px 16px;font-size:11px;flex-wrap:wrap}
+.rq1-section{border-top:1px solid var(--border);padding:12px 0}
+.rq1-section h3{margin:0 0 8px;font-size:12px}
+.rq1-list{margin:0;padding-left:18px;font-size:11px}
+.rq1-mini{width:100%;font-size:10px}
+.rq1-mini td,.rq1-mini th{padding:5px 8px;border-bottom:1px solid var(--border);text-align:left;white-space:normal}
+.rq1-confusion{display:grid;grid-template-columns:auto 1fr 1fr;gap:4px;font-size:11px;max-width:320px}
+.rq1-confusion div{padding:10px;border-radius:4px;background:var(--panel-alt);border:1px solid var(--border);text-align:center}
+.rq1-confusion .head{background:none;border:0;color:var(--muted);font-size:9px;text-transform:uppercase}
+.rq1-confusion strong{display:block;font-size:20px}
+.rq1-json{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:10px;white-space:pre-wrap;overflow-wrap:anywhere;max-height:480px;overflow:auto;background:var(--panel-alt);border:1px solid var(--border);border-radius:5px;padding:12px}
+.rq1-json .k{color:var(--accent)}.rq1-json .s{color:#86d5b4}.rq1-json .n{color:#e0b062}.rq1-json .b{color:#b59bee}
+:root[data-theme="light"] .rq1-json .s{color:#1c7a57}:root[data-theme="light"] .rq1-json .n{color:#8a5a00}:root[data-theme="light"] .rq1-json .b{color:#5b47b8}
+.rq1-swatch{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:6px;vertical-align:middle}
+.rq1-timeline{list-style:none;margin:0;padding:0;font-size:11px}
+.rq1-timeline li{border-left:2px solid var(--border);padding:4px 0 8px 12px;margin-left:6px}
+.rq1-timeline li.critical{border-left-color:var(--accent)}
+.rq1-timeline details summary{cursor:pointer}
+.rq1-panel-side{position:fixed;top:0;right:0;bottom:0;width:min(880px,100vw);background:var(--panel);border-left:1px solid var(--border);z-index:60;overflow:auto;box-shadow:-12px 0 40px #0006}
+.rq1-panel-side header{position:sticky;top:0;background:var(--panel);display:flex;justify-content:space-between;align-items:center;padding:14px 20px;border-bottom:1px solid var(--border);z-index:2}
+.rq1-graph{height:520px;border-top:1px solid var(--border)}
+.rq1-chart{height:280px;padding:10px 6px}
+.rq1-row-actions{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.rq1-toast{font-size:11px;color:var(--accent)}
+@media(max-width:760px){.rq1-stream li{grid-template-columns:1fr}.rq1-check{grid-template-columns:1fr}.rq1-kv{grid-template-columns:1fr}}

@@ -110,6 +110,9 @@ def create_console_app(db_path: str | Path = "swarmguard_console.db", *,
         from swarmguard.console.laboratory import LaboratoryJobs
         from swarmguard.research.laboratory import Laboratory
         app.state.laboratory = LaboratoryJobs(Laboratory(writer, clock=clock, revision=code_revision), manager.worker)
+        from swarmguard.console.rq1_routes import RQ1Jobs
+        from swarmguard.research.rq1_lab import RQ1Laboratory
+        app.state.rq1 = RQ1Jobs(RQ1Laboratory(writer, clock=clock, revision=code_revision), manager.worker)
         from swarmguard.console.platform import PlatformJobs
         app.state.platform = PlatformJobs(writer, clock, manager.worker, code_revision)
         reader = Database(path, read_only=True)
@@ -122,6 +125,7 @@ def create_console_app(db_path: str | Path = "swarmguard_console.db", *,
                 yield
             finally:
                 await app.state.laboratory.close()
+                await app.state.rq1.close()
                 await app.state.platform.close()
                 await app.state.research.close()
                 await manager.close()
@@ -133,6 +137,9 @@ def create_console_app(db_path: str | Path = "swarmguard_console.db", *,
                   description="Loopback research prototype. Mock execution only. Authorization stays in the Capability Gateway.")
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=["localhost", "127.0.0.1", "testserver",
                                                          *[h for h in __import__("os").environ.get("SWARMGUARD_ALLOWED_HOSTS", "").split(",") if h]])
+    # Registered before the generic /api/research/{section} route so /api/research/rq1 resolves here.
+    from swarmguard.console.rq1_routes import register_rq1_routes
+    register_rq1_routes(app, auth)
     from swarmguard.console.research import register_research_routes
     register_research_routes(app, auth)
     from swarmguard.console.laboratory import register_laboratory_routes

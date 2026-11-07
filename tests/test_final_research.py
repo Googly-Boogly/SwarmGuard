@@ -125,3 +125,48 @@ def test_statistics():
     assert interval['low']==pytest.approx(.4038315,abs=1e-6)
     assert interval['high']==pytest.approx(.5961685,abs=1e-6)
     assert holm_adjust([.01,.04,.03])==pytest.approx([.03,.06,.06])
+
+
+def test_research_question_registry_is_versioned(tmp_path):
+    from swarmguard.research.hypothesis_registry import (LEGACY_REGISTRY_VERSION, REGISTRY_VERSION, question_for,
+                                                         questions)
+    current = {q['research_question_id']: q for q in questions()}
+    assert list(current) == ['RQ1', 'RQ2', 'RQ3']
+    assert current['RQ1']['question'].startswith('Can global workflow monitoring detect distributed approval laundering')
+    assert current['RQ1']['dependent_variables'] == ['recall', 'precision', 'false_positive_rate', 'f1', 'detection_latency']
+    assert current['RQ2']['dependent_variables'][-2:] == ['monitor_disagreement', 'computational_cost']
+    assert current['RQ3']['dependent_variables'][0] == 'unauthorized_execution_rate'
+    assert all(q['goal'] and q['question'] for q in current.values())
+    legacy = {q['research_question_id']: q for q in questions(registry_version=LEGACY_REGISTRY_VERSION)}
+    assert legacy['RQ1']['hypothesis'] == 'Global context improves workflow-risk detection.'
+    assert legacy['RQ1']['question'] is None
+    assert list(legacy) == [f'RQ{n}' for n in range(1, 8)]
+    with pytest.raises(ValueError):
+        questions(registry_version='rq-registry-999')
+    db=Database()
+    try:
+        lab=Laboratory(db);lab.datasets.seed()
+        record=asyncio.run(lab.run(lab.prepare(ExperimentConfig(dataset='swarmguard_autonomous'))['experiment_id']))
+        assert record['manifest']['question_registry_version'] == REGISTRY_VERSION
+        assert current['RQ1']['hypothesis'] in generate_report(record)['markdown']
+        verify_bundle(export_bundle(record, tmp_path/'current'))
+        # A record created before versioning keeps rendering, and verifying, with the original text.
+        old = deepcopy(record)
+        del old['manifest']['question_registry_version']
+        assert question_for(old)['hypothesis'] == legacy['RQ1']['hypothesis']
+        markdown = generate_report(old)['markdown']
+        assert legacy['RQ1']['hypothesis'] in markdown and current['RQ1']['hypothesis'] not in markdown
+        verify_bundle(export_bundle(old, tmp_path/'legacy'))
+        # A retired question still renders and verifies for an experiment created under the legacy registry.
+        retired = deepcopy(old)
+        retired['config']['question'] = 'RQ4'
+        assert legacy['RQ4']['title'] in generate_report(retired)['markdown']
+        verify_bundle(export_bundle(retired, tmp_path/'retired'))
+        # New experiments may select only the current questions.
+        for allowed in ('RQ1', 'RQ2', 'RQ3'):
+            lab.prepare(ExperimentConfig(dataset='swarmguard_autonomous', question=allowed))
+        for retired_id in ('RQ4', 'RQ5', 'RQ6', 'RQ7'):
+            with pytest.raises(ValueError, match='not in the current registry'):
+                lab.prepare(ExperimentConfig(dataset='swarmguard_autonomous', question=retired_id))
+    finally:
+        db.close()
