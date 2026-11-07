@@ -2,7 +2,7 @@
 
 Run `python run_research.py --provider mock`. The command persists a laboratory database and exclusive bundles under results/stage8. Use `--dataset swarmguard_autonomous --mode MOCK_AUTONOMOUS --question RQ1` for observation-driven mock policies.
 
-The registry (`rq-registry-2`) contains RQ1–RQ3 only; new experiments cannot select RQ4–RQ7. Experiments created earlier keep rendering and verifying with the question text they were created under (`rq-registry-1`).
+The registry (`rq-registry-3`) contains RQ1–RQ3 only. RQ2 asks: "Does a four-framework Ethics Council detect multi-agent safety violations more effectively than an equivalent group of general-purpose safety monitors?" (reworded in `rq-registry-3`; experiments created under `rq-registry-2` keep the earlier wording); new experiments cannot select RQ4–RQ7. Experiments created earlier keep rendering and verifying with the question text they were created under (`rq-registry-1`).
 
 The default compares all seven monitor configurations. Exact configuration JSON, dataset definition/hash, source fingerprint, actual revision, prompt hashes, environment versions, prediction CSV, failure accounting, trajectories, graph, report and checksums are exported.
 

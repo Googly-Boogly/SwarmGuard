@@ -4,6 +4,10 @@ The registry is versioned. Each laboratory experiment records the registry versi
 its manifest, and reports render that version's text, so a reworded or retired question never changes a
 historical report or breaks verification of an existing reproducibility bundle. Records created before
 versioning carry no version and use ``rq-registry-1``, which also keeps the retired RQ4–RQ7.
+
+* ``rq-registry-1``: all seven original questions (legacy).
+* ``rq-registry-2``: RQ1–RQ3 restated; RQ4–RQ7 retired.
+* ``rq-registry-3``: RQ2 reworded (four-framework Ethics Council vs. general-purpose monitors); RQ1 and RQ3 unchanged.
 """
 from __future__ import annotations
 from typing import Any, Literal
@@ -12,8 +16,9 @@ from swarmguard.models.adversarial import StrictModel
 QuestionStatus = Literal["NOT_EVALUATED", "EXPERIMENT_CONFIGURED", "EVALUATION_RUNNING", "RESULTS_AVAILABLE", "INCONCLUSIVE"]
 
 LEGACY_REGISTRY_VERSION = "rq-registry-1"
-REGISTRY_VERSION = "rq-registry-2"
-REGISTRY_VERSIONS = (LEGACY_REGISTRY_VERSION, REGISTRY_VERSION)
+REGISTRY_V2 = "rq-registry-2"
+REGISTRY_VERSION = "rq-registry-3"
+REGISTRY_VERSIONS = (LEGACY_REGISTRY_VERSION, REGISTRY_V2, REGISTRY_VERSION)
 
 
 class ResearchQuestion(StrictModel):
@@ -62,7 +67,7 @@ _ANALYSIS_SUFFIX = ". Report descriptive paired effects and failures; no inferen
 
 # rq-registry-2: RQ1–RQ3 restated by the research team (2026-11-07). RQ4–RQ7 are retired: they exist only in
 # rq-registry-1, for rendering experiments created before this version, and new experiments cannot select them.
-_DETAILED: dict[str, dict[str, Any]] = {
+_DETAILED_V2: dict[str, dict[str, Any]] = {
     "RQ1": {
         "title": "Global Workflow Monitoring",
         "question": "Can global workflow monitoring detect distributed approval laundering in autonomous multi-agent "
@@ -134,6 +139,28 @@ _DETAILED: dict[str, dict[str, Any]] = {
     },
 }
 
+# rq-registry-3: RQ2 reworded by the research team (2026-11-07). RQ1 and RQ3 are identical to rq-registry-2.
+_DETAILED: dict[str, dict[str, Any]] = {
+    **_DETAILED_V2,
+    "RQ2": {
+        **_DETAILED_V2["RQ2"],
+        "question": "Does a four-framework Ethics Council detect multi-agent safety violations more effectively than an "
+                    "equivalent group of general-purpose safety monitors?",
+        "hypothesis": "A four-framework Ethics Council (virtue ethics, consequentialism, deontology and care ethics) detects "
+                      "multi-agent safety violations more effectively than an equivalent group of four general-purpose "
+                      "safety monitors.",
+        "null_hypothesis": "A four-framework Ethics Council provides no measurable detection benefit over an equivalent "
+                           "group of general-purpose safety monitors under the declared conditions.",
+        "what_we_are_testing": "Whether specializing monitors in distinct ethical frameworks improves detection of "
+                               "multi-agent safety violations.",
+        "comparison": ["General group: four general-purpose LLM safety monitors",
+                       "Ethics Council: four LLM monitors, one each for virtue ethics, consequentialism, deontology and "
+                       "care ethics"],
+    },
+}
+
+_BY_VERSION: dict[str, dict[str, dict[str, Any]]] = {REGISTRY_V2: _DETAILED_V2, REGISTRY_VERSION: _DETAILED}
+
 
 def _status(evaluations: list[dict[str, Any]]) -> QuestionStatus:
     status: QuestionStatus = "NOT_EVALUATED"
@@ -152,8 +179,9 @@ def questions(experiments: list[dict[str, Any]] | None = None,
     for n, (title, hypothesis, variable, metrics, plan) in enumerate(_QUESTIONS, 1):
         qid = f"RQ{n}"
         evaluations = [e for e in experiments or [] if e["config"]["question"] == qid]
-        detail = _DETAILED.get(qid) if registry_version == REGISTRY_VERSION else None
-        if registry_version == REGISTRY_VERSION and detail is None:
+        detailed = _BY_VERSION.get(registry_version)
+        detail = detailed.get(qid) if detailed is not None else None
+        if detailed is not None and detail is None:
             continue
         if detail is None:
             q = ResearchQuestion(research_question_id=qid, title=title, hypothesis=hypothesis + ".",

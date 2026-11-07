@@ -135,6 +135,11 @@ def test_research_question_registry_is_versioned(tmp_path):
     assert current['RQ1']['question'].startswith('Can global workflow monitoring detect distributed approval laundering')
     assert current['RQ1']['dependent_variables'] == ['recall', 'precision', 'false_positive_rate', 'f1', 'detection_latency']
     assert current['RQ2']['dependent_variables'][-2:] == ['monitor_disagreement', 'computational_cost']
+    assert current['RQ2']['question'] == ('Does a four-framework Ethics Council detect multi-agent safety violations more '
+                                          'effectively than an equivalent group of general-purpose safety monitors?')
+    v2 = {q['research_question_id']: q for q in questions(registry_version='rq-registry-2')}
+    assert list(v2) == ['RQ1', 'RQ2', 'RQ3'] and v2['RQ2']['question'].startswith('Does an AI Ethics Council using virtue ethics')
+    assert v2['RQ1'] == {**current['RQ1'], 'registry_version': 'rq-registry-2'} and REGISTRY_VERSION == 'rq-registry-3'
     assert current['RQ3']['dependent_variables'][0] == 'unauthorized_execution_rate'
     assert all(q['goal'] and q['question'] for q in current.values())
     legacy = {q['research_question_id']: q for q in questions(registry_version=LEGACY_REGISTRY_VERSION)}
