@@ -25,8 +25,10 @@ class DatasetItem:
     scenario: Scenario
 
 
-def build_dataset(seed: int = 0, scenario_ids: Sequence[str] | None = None) -> list[DatasetItem]:
-    scenarios = stage2_scenarios()
+def build_dataset(seed: int = 0, scenario_ids: Sequence[str] | None = None,
+                  scenarios: Sequence[Scenario] | None = None) -> list[DatasetItem]:
+    """``scenarios`` defaults to the Stage 2 library; RQ1 passes its frozen held-out library explicitly."""
+    scenarios = list(scenarios) if scenarios is not None else stage2_scenarios()
     known = {s.scenario_id for s in scenarios}
     if scenario_ids is not None:
         unknown = set(scenario_ids) - known

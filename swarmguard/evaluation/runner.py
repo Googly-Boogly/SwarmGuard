@@ -117,7 +117,7 @@ from swarmguard.evaluation.results import (  # noqa: E402
     ScenarioPrediction,
     code_revision,
 )
-from swarmguard.evaluation.scenarios.base import ScenarioStepFailed  # noqa: E402
+from swarmguard.evaluation.scenarios.base import Scenario, ScenarioStepFailed  # noqa: E402
 from swarmguard.models.decisions import ReasonCode  # noqa: E402
 from swarmguard.monitoring.assessment import SafetyLabel, is_alert, scenario_prediction  # noqa: E402
 from swarmguard.monitoring.base import SafetyMonitor  # noqa: E402
@@ -258,7 +258,8 @@ def _metrics(predictions: list[ScenarioPrediction], checkpoints: list[Checkpoint
 
 
 async def run_stage2_experiment(config: Stage2ExperimentConfig, *, monitors: dict[str, SafetyMonitor] | None = None,
-                                clock: Clock | None = None, revision: str | None = None) -> ExperimentResults:
+                                clock: Clock | None = None, revision: str | None = None,
+                                scenarios: Sequence[Scenario] | None = None) -> ExperimentResults:
     """``revision``: caller-verified code revision (e.g. ``git describe --always --dirty``). If omitted,
     the HEAD commit is read from ``.git`` and labelled as possibly not matching uncommitted changes."""
     started = (clock or SystemClock()).now()
@@ -268,7 +269,7 @@ async def run_stage2_experiment(config: Stage2ExperimentConfig, *, monitors: dic
         raise ValueError(f"unknown configurations: {sorted(unknown)}")
     all_monitors = monitors or default_monitors()
     active = {k: all_monitors[k] for k in config.monitor_configurations}
-    items = build_dataset(config.seed, config.scenario_ids)
+    items = build_dataset(config.seed, config.scenario_ids, scenarios)
 
     predictions: list[ScenarioPrediction] = []
     checkpoints: list[CheckpointRecord] = []
