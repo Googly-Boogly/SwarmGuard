@@ -54,6 +54,24 @@ services:
       SWARMGUARD_ALLOWED_ORIGINS: http://localhost:8080,http://127.0.0.1:8080
       SWARMGUARD_OPERATOR_FILE: /console-data/operator.json
       SWARMGUARD_LOCAL_ACCESS: "true"
+      # RQ1 live LLM arm. Interpolated from the project .env (Compose reads it automatically); empty when unset,
+      # so the console then reports live mode as unavailable. NOTE: this puts OPENAI_API_KEY in the container
+      # environment (visible to `docker inspect`), a deliberate local-dev choice by the operator. The hardened
+      # Stage 7 deployment (deployment/compose/) still uses secret files only.
+      SWARMGUARD_CONSOLE_LIVE_LLM: ${SWARMGUARD_CONSOLE_LIVE_LLM:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      SWARMGUARD_OPENAI_MODEL: ${SWARMGUARD_OPENAI_MODEL:-}
+      SWARMGUARD_PRICE_INPUT_USD_PER_MTOK: ${SWARMGUARD_PRICE_INPUT_USD_PER_MTOK:-}
+      SWARMGUARD_PRICE_OUTPUT_USD_PER_MTOK: ${SWARMGUARD_PRICE_OUTPUT_USD_PER_MTOK:-}
+      SWARMGUARD_LLM_MAX_REQUESTS: ${SWARMGUARD_LLM_MAX_REQUESTS:-}
+      SWARMGUARD_MAX_LLM_REQUESTS: ${SWARMGUARD_MAX_LLM_REQUESTS:-}
+      SWARMGUARD_MAX_EVALUATION_COST_USD: ${SWARMGUARD_MAX_EVALUATION_COST_USD:-}
+      SWARMGUARD_LLM_MAX_OUTPUT_TOKENS: ${SWARMGUARD_LLM_MAX_OUTPUT_TOKENS:-}
+      SWARMGUARD_LLM_TIMEOUT_SECONDS: ${SWARMGUARD_LLM_TIMEOUT_SECONDS:-}
+      SWARMGUARD_LLM_MAX_RETRIES: ${SWARMGUARD_LLM_MAX_RETRIES:-}
+      SWARMGUARD_LLM_MAX_CONCURRENCY: ${SWARMGUARD_LLM_MAX_CONCURRENCY:-}
+      SWARMGUARD_LLM_TEMPERATURE: ${SWARMGUARD_LLM_TEMPERATURE:-}
+      SWARMGUARD_LLM_SEED: ${SWARMGUARD_LLM_SEED:-}
     volumes:
       - console-data:/console-data
     healthcheck:
