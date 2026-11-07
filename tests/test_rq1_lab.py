@@ -57,9 +57,10 @@ def test_rq1_selectable_with_datasets_and_recommended_settings(console):
     held = next(d for d in overview["datasets"] if d["partition"] == "held_out")
     assert held["content_hash"] == rq1_lab.FROZEN_DATASET_HASH and held["matches_frozen_hash"]
     assert (held["n"], held["unsafe"], held["legitimate"]) == (24, 12, 12)
-    assert overview["recommended_config"] == RQ1ExperimentConfig().model_dump()
+    assert overview["recommended_config"] == {**RQ1ExperimentConfig().model_dump(), "llm_mode": "none"}
+    assert overview["llm_status"]["live"]["available"] is False  # no provider injected into this test server
     assert overview["recommended_config"]["partition"] == "held_out" and overview["recommended_config"]["seed"] == 0
-    assert "LIVE_LLM" in overview["unavailable_options"]["execution_modes"]
+    assert "MOCK_AUTONOMOUS" in overview["unavailable_options"]["execution_modes"]
 
 
 def test_valid_configuration_runs_persists_and_records_progress(console):
@@ -144,7 +145,9 @@ def test_validation_reports_warnings_not_validity_for_pilots_and_passes_the_prot
     assert pilot["status"] == "WARNINGS"
     assert {c["id"] for c in pilot["checks"] if c["status"] == "WARN"} >= {"dataset", "subset"}
     primary = asyncio.run(validate_config(RQ1ExperimentConfig()))
-    assert primary["status"] == "VALIDATED", [c for c in primary["checks"] if c["status"] != "PASS"]
+    # The only remark on the pre-registered rules-only procedure is that no LLM will be called.
+    assert primary["status"] == "WARNINGS"
+    assert [c["id"] for c in primary["checks"] if c["status"] != "PASS"] == ["llm"]
     ids = {c["id"] for c in primary["checks"]}
     assert ids >= {"dataset", "schema", "labels", "monitors", "matched_snapshots", "label_isolation", "future_events",
                    "scoring", "comparability", "limits", "dataset_validity"}
@@ -261,10 +264,10 @@ def test_failed_evaluations_are_recorded_and_never_scored(tmp_path, monkeypatch)
         # A workflow that fails during execution is recorded, the others keep their evidence, nothing is scored.
         real = rq1_lab._capture_in_thread
 
-        def flaky(item, max_steps):
+        def flaky(item, *args):
             if item.workflow_id == "wf_002":
                 raise RuntimeError("injected monitor failure")
-            return real(item, max_steps)
+            return real(item, *args)
         monkeypatch.setattr(rq1_lab, "_capture_in_thread", flaky)
         config = RQ1ExperimentConfig(partition="development", scenario_ids=PILOT)
         record = lab.prepare(config, asyncio.run(validate_config(config)), "tester")

@@ -17,3 +17,11 @@ Use existing run_framework_evaluation.py for external frameworks and run_ethics_
 ## RQ1 laboratory (browser)
 
 Open **Research → RQ1 Laboratory** (`/research/rq1`). **NEW EXPERIMENT** opens the configuration; **USE RECOMMENDED RQ1 SETTINGS** selects the pre-registered procedure (frozen held-out dataset, all 24 workflows, seed 0, one trial) and **Use pilot settings** selects the two development pilot scenarios. **VALIDATE METHODOLOGY** runs monitor-free checks on the server; **RUN RQ1 EXPERIMENT** is enabled only after the current settings validate without critical problems. The experiment page shows live progress and recorded events, then the results tabs. Raw Data has checkpoint-level and workflow-level views with server-side filters, sorting, paging, quick views (for example "Local missed unsafe workflows", "Global false positives"), copy buttons and a record panel showing the exact monitor input and output, ground truth, gateway decision and outcome. Results are stored in the console database and stay available after restarts. Runs are deterministic and synthetic; the decision rule decides H1 only for the pre-registered procedure.
+
+### RQ1 with LLM monitors
+
+The configuration's **LLM monitors** section adds LLM Local and LLM Global (one `GeneralSafetyMonitor` on the Local vs. Global view of the same snapshot; protocol `docs/RQ1_LLM_PROTOCOL.md`). **Mock** runs the LLM pipeline with a synthetic responder (no model, never evidence). **Live** calls the configured OpenAI model and is offered only when the console was started with `SWARMGUARD_CONSOLE_LIVE_LLM=1` and `.env` has `OPENAI_API_KEY`, `SWARMGUARD_OPENAI_MODEL` and positive `SWARMGUARD_PRICE_*_USD_PER_MTOK`; each run also needs a request cap, a dollar cap and the paid-call confirmation. Validation shows the number of calls and the worst-case cost before anything runs. For example:
+
+```bash
+SWARMGUARD_CONSOLE_LIVE_LLM=1 python -m uvicorn console_main:app --host 127.0.0.1 --port 8000 --ws-max-size 16384 --limit-concurrency 32
+```

@@ -31,7 +31,12 @@ def test_51_stage3_mock_demonstration_completes(tmp_path, capsys):
 
 
 def test_live_demo_refuses_without_configuration(tmp_path, monkeypatch, capsys):
-    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    # Hermetic: a developer's .env (key, model, prices) must not turn this into a configured live run.
+    for module in (demo_stage3, run_ethics_evaluation):
+        monkeypatch.setattr(module, "load_env_file", lambda *a, **k: False)
+    for key in ("OPENAI_API_KEY", "SWARMGUARD_OPENAI_MODEL", "SWARMGUARD_PRICE_INPUT_USD_PER_MTOK",
+                "SWARMGUARD_PRICE_OUTPUT_USD_PER_MTOK", "SWARMGUARD_LLM_MAX_REQUESTS"):
+        monkeypatch.delenv(key, raising=False)
     assert run(demo_stage3.main("openai", tmp_path / "x.db")) == 2
     assert run(run_ethics_evaluation.main("openai", tmp_path, "x", 0, None, "critical", "MAJORITY_WITH_ESCALATION",
                                           None)) == 2

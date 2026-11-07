@@ -80,7 +80,8 @@ def create_console_app(db_path: str | Path = "swarmguard_console.db", *,
                        step_delay: float = .06, code_revision: str = "unavailable",
                        accounts: dict[str, Any] | None = None, control_plane: Any | None = None,
                        checkpoint_dir: Path | None = None, inprocess_execution: bool = True,
-                       local_access: bool = False) -> FastAPI:
+                       local_access: bool = False, rq1_llm_factory: Any | None = None,
+                       rq1_llm_status: Any | None = None) -> FastAPI:
     path = str(db_path)
     clock = clock or SystemClock()
     if local_access and (not inprocess_execution or control_plane is not None):
@@ -112,7 +113,8 @@ def create_console_app(db_path: str | Path = "swarmguard_console.db", *,
         app.state.laboratory = LaboratoryJobs(Laboratory(writer, clock=clock, revision=code_revision), manager.worker)
         from swarmguard.console.rq1_routes import RQ1Jobs
         from swarmguard.research.rq1_lab import RQ1Laboratory
-        app.state.rq1 = RQ1Jobs(RQ1Laboratory(writer, clock=clock, revision=code_revision), manager.worker)
+        app.state.rq1 = RQ1Jobs(RQ1Laboratory(writer, clock=clock, revision=code_revision, llm_factory=rq1_llm_factory,
+                                              llm_status=rq1_llm_status), manager.worker)
         from swarmguard.console.platform import PlatformJobs
         app.state.platform = PlatformJobs(writer, clock, manager.worker, code_revision)
         reader = Database(path, read_only=True)

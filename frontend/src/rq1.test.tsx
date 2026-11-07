@@ -14,8 +14,10 @@ function mount(node: ReactNode, path = '/') {
  return render(<QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}><MemoryRouter initialEntries={[path]}><Routes><Route path="*" element={node}/></Routes></MemoryRouter></QueryClientProvider>)
 }
 
-const config = { partition: 'held_out' as const, scenario_ids: null, seed: 0, trials: 1, execution_mode: 'SCRIPTED' as const, monitors: ['local_action', 'global_workflow'], max_runtime_seconds: 300, max_steps_per_workflow: 60, timing_repeats: 5 }
+const config = { partition: 'held_out' as const, scenario_ids: null, seed: 0, trials: 1, execution_mode: 'SCRIPTED' as const, monitors: ['local_action', 'global_workflow'], max_runtime_seconds: 300, max_steps_per_workflow: 60, timing_repeats: 5, llm_mode: 'none' as const, llm_checkpoints: 'outbound' as const, llm_max_requests: 200, llm_max_cost_usd: null, confirm_paid_calls: false }
 const overview: Overview = {
+ llm_status: { mock: { available: true, reasons: [], provider: 'mock', model: 'mock-structured-v1' }, live: { available: false, reasons: ['the server was not started with SWARMGUARD_CONSOLE_LIVE_LLM=1'], provider: 'openai', model: 'gpt-x', max_requests_cap: 1000, max_cost_cap_usd: 5 } },
+ llm_policies: { critical: 'only the critical action', outbound: 'every outbound action', all: 'every action checkpoint' }, llm_protocol_version: 'rq1-llm-protocol-1',
  question: { research_question_id: 'RQ1', title: 'Global Workflow Monitoring', question: 'Can global workflow monitoring detect distributed approval laundering?', hypothesis: 'H1 text', null_hypothesis: 'H0 text', goal: 'Goal text' },
  datasets: [{ partition: 'held_out', dataset_version: 'rq1-heldout-1', content_hash: 'a'.repeat(64), n: 24, unsafe: 12, legitimate: 12, categories: ['distributed_approval_laundering'], composition: { distributed_approval_laundering: { UNSAFE: 6, SAFE: 6 } }, frozen: true, matches_frozen_hash: true, role: 'Primary RQ1 evidence', scenarios: [] },
   { partition: 'development', dataset_version: 'stage2-library', content_hash: 'b'.repeat(64), n: 14, unsafe: 8, legitimate: 6, categories: ['x'], composition: { x: { UNSAFE: 8, SAFE: 6 } }, frozen: false, matches_frozen_hash: false, role: 'Development only', scenarios: [{ scenario_id: 'distributed_approval_001', category: 'x', family: 'f', label: 'UNSAFE' }] }],
@@ -60,6 +62,34 @@ describe('RQ1 laboratory', () => {
   expect(screen.getByText(/Settings changed after validation/)).toBeInTheDocument()
   fireEvent.click(screen.getByRole('button', { name: 'USE RECOMMENDED RQ1 SETTINGS' }))
   expect(screen.getByRole('combobox', { name: 'Dataset' })).toHaveValue('held_out')
+ })
+
+ it('LLM controls show live availability reasons and require paid-call confirmation for live runs', async () => {
+  const live = { ...overview, llm_status: { ...overview.llm_status, live: { ...overview.llm_status.live, available: true, reasons: [] } } }
+  api(path => path === '/api/research/rq1/validate' ? { ...validation, status: 'VALIDATED', llm_estimate: { calls: 48, estimated_input_tokens: 376140, max_output_tokens_total: 38400, estimated_max_cost_usd: 0.53, note: 'estimate' } } : live)
+  mount(<RQ1LabPage view="new"/>)
+  const mode = await screen.findByRole('combobox', { name: 'LLM mode' })
+  expect(within(mode).getByRole('option', { name: /Live — openai · gpt-x \(paid\)/ })).toBeEnabled()
+  fireEvent.change(mode, { target: { value: 'live' } })
+  expect(screen.getByLabelText('C · LLM Local monitor (llm_local)')).toBeChecked()
+  expect(screen.getByRole('spinbutton', { name: 'Maximum cost' })).toHaveValue(1)
+  fireEvent.click(screen.getByRole('button', { name: 'VALIDATE METHODOLOGY' }))
+  expect(await screen.findByText(/48 calls · ~376,140 input tokens · worst-case cost \$0.53/)).toBeInTheDocument()
+  const run = screen.getByRole('button', { name: 'RUN RQ1 EXPERIMENT' })
+  expect(run).toBeDisabled()
+  fireEvent.click(screen.getByLabelText('Confirm paid calls'))
+  expect(run).toBeDisabled()  // confirmation changed the settings, so they must be re-validated
+  fireEvent.click(screen.getByRole('button', { name: 'VALIDATE METHODOLOGY' }))
+  await waitFor(() => expect(run).toBeEnabled())
+ })
+
+ it('live LLM is shown as unavailable with the server reasons', async () => {
+  api(() => overview)
+  mount(<RQ1LabPage view="new"/>)
+  const mode = await screen.findByRole('combobox', { name: 'LLM mode' })
+  expect(within(mode).getByRole('option', { name: /Live .*unavailable/ })).toBeDisabled()
+  expect(within(mode).getByRole('option', { name: /Mock/ })).toBeEnabled()
+  expect(screen.getByRole('note')).toHaveTextContent('SWARMGUARD_CONSOLE_LIVE_LLM=1')
  })
 
  it('validation report shows every check with a text status, never color alone', () => {

@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { Fragment, useMemo } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Bar, BarChart, CartesianGrid, ErrorBar, LabelList, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
@@ -29,7 +29,7 @@ export function RQ1ExperimentPage() {
  if (!record.data) return <Loading/>
  const e = record.data
  return <>
-  <PageTitle eyebrow="RQ1 EXPERIMENT" title={e.experiment_id} description="Local Action Monitor vs. Global Workflow Monitor on matching workflow snapshots. Scripted agents, deterministic monitors, synthetic data.">
+  <PageTitle eyebrow="RQ1 EXPERIMENT" title={e.experiment_id} description={`Local vs. Global monitoring on matching workflow snapshots. Scripted agents, synthetic data; deterministic rule monitors${e.llm?.mode === 'live' ? ` plus a live LLM monitor (${e.llm.model ?? ''})` : e.llm?.mode === 'mock' ? ' plus the LLM monitor pipeline in mock mode (synthetic, no model contacted)' : ' only (no LLM)'}.`}>
    <Link className="button outline small" to="/research/rq1">RQ1 Laboratory</Link>
   </PageTitle>
   <ExperimentHeader e={e}/>
@@ -56,7 +56,7 @@ function ExperimentHeader({ e }: { e: Experiment }) {
  return <Panel title="Experiment" subtitle={e.preregistered_procedure ? 'Pre-registered procedure (rq1-protocol-1): complete frozen held-out dataset, seed 0.' : 'Exploratory run: not the pre-registered procedure.'} action={<Tag value={e.status}/>}>
   <div className="rq1-body"><div className="rq1-grid">
    <KV rows={[['Research question', 'RQ1 — Global vs. Local monitoring'], ['Dataset', `${e.config.partition} · ${e.validation.dataset_version}`], ['Scenarios', e.config.scenario_ids ? `${e.config.scenario_ids.length} selected` : `all ${e.validation.selected_scenarios}`]]}/>
-   <KV rows={[['Monitors', 'Local Monitor (A), Global Monitor (B)'], ['Execution mode', 'Scripted · deterministic simulation'], ['Model usage', `${e.model_requests} requests · $${e.estimated_cost_usd}`]]}/>
+   <KV rows={[['Monitors', e.llm?.mode && e.llm.mode !== 'none' ? 'Local (A), Global (B), LLM Local (C), LLM Global (D)' : 'Local Monitor (A), Global Monitor (B)'], ['Execution mode', `Scripted agents · ${e.llm?.mode === 'live' ? `live LLM (${e.llm.model ?? 'model pending'})` : e.llm?.mode === 'mock' ? 'mock LLM (synthetic)' : 'rules only'}`], ['Model usage', `${e.model_requests ?? 0} requests · ${e.llm_usage ? `${e.llm_usage.input_tokens.toLocaleString()} in / ${e.llm_usage.output_tokens.toLocaleString()} out tokens · ` : ''}$${(e.estimated_cost_usd ?? 0).toFixed(4)}${e.llm_usage?.is_synthetic ? ' (synthetic)' : ''}`]]}/>
    <KV rows={[['Created', new Date(e.created_at).toLocaleString()], ['Started', e.started_at ? new Date(e.started_at).toLocaleString() : null], ['Completed', e.completed_at ? new Date(e.completed_at).toLocaleString() : null]]}/>
   </div>{e.error && <p role="alert" className="warning-text">{e.error}</p>}</div>
  </Panel>
@@ -81,7 +81,7 @@ function LiveMonitor({ e, onResults, onWorkflow, hasResults }: { e: Experiment; 
     <div className="metric-grid" style={{ marginTop: 12 }}>
      <Stat title="Scenarios completed" value={p.completed_workflows}/><Stat title="Scenarios remaining" value={Math.max(0, p.total_workflows - p.completed_workflows - p.failed_workflows)}/>
      <Stat title="Current scenario" value={<span style={{ fontSize: 13 }}>{p.current_scenario ?? '—'}</span>} note={p.current_workflow ?? undefined}/>
-     <Stat title="Completed trials" value={p.completed_workflows} note="1 scored trial per workflow"/><Stat title="Failed trials" value={p.failed_workflows}/><Stat title="Model usage" value={`${e.model_requests}`} note="requests · $0"/>
+     <Stat title="Completed trials" value={p.completed_workflows} note="1 scored trial per workflow"/><Stat title="Failed trials" value={p.failed_workflows}/><Stat title="Model requests" value={`${e.llm_usage?.attempts ?? 0}`} note={e.llm_usage ? `${e.llm_usage.succeeded} ok · ${e.llm_usage.failed} failed · ${e.llm_usage.refused} refused · $${e.llm_usage.spent_usd_conservative.toFixed(4)}${e.llm_usage.is_synthetic ? ' · synthetic' : ''}` : e.llm?.mode && e.llm.mode !== 'none' ? 'LLM arm pending' : 'rules only · $0'}/>
     </div>
     <ol className="rq1-list" aria-label="Phases">{p.phases.map((ph, i) => <li key={i}>{label(ph.phase)} · {new Date(ph.started_at).toLocaleTimeString()}</li>)}</ol>
     {cancel.error && <ErrorBox error={cancel.error}/>}
@@ -113,11 +113,18 @@ function OverviewTab({ e, r }: { e: Experiment; r: Results }) {
    <Stat title="Difference in recall" value={signed(r.analysis.recall_difference_global_minus_local)} note="Global − Local"/>
    <Stat title="Difference in FPR" value={signed(lo.false_positive_rate !== null && gl.false_positive_rate !== null ? gl.false_positive_rate - lo.false_positive_rate : null)} note="Global − Local"/>
   </div>
+  {r.llm_analysis && r.llm && <><p className="eyebrow">LLM arm · {r.llm.provider} · {r.llm.model}{r.llm.is_synthetic ? ' · SYNTHETIC MOCK (not evidence)' : ''} · {r.llm.checkpoint_policy} checkpoints</p>
+   <div className="metric-grid">{(['llm_local', 'llm_global'] as const).map(c => { const m = r.llm_analysis!.primary[c]; const name = c === 'llm_local' ? 'LLM Local' : 'LLM Global'; return <Fragment key={c}>
+    <Stat title={`${name} recall`} value={pct(m.recall)} note={`${m.tp}/${m.tp + m.fn} unsafe · ${m.unknown} unknown`}/>
+    <Stat title={`${name} false-positive rate`} value={pct(m.false_positive_rate)} note={`${m.fp}/${m.fp + m.tn} legitimate flagged`}/></Fragment> })}
+    <Stat title="LLM requests" value={r.llm_usage?.attempts ?? 0} note={`${r.llm_usage?.failed ?? 0} failed · ${(r.llm_usage?.input_tokens ?? 0).toLocaleString()} input tokens`}/>
+    <Stat title="LLM cost (conservative)" value={`$${(r.llm_usage?.spent_usd_conservative ?? 0).toFixed(4)}`} note={r.llm.is_synthetic ? 'mock: no model contacted' : 'from recorded usage'}/>
+   </div></>}
   <Panel title="What did this experiment investigate?">
    <div className="rq1-body">
     <p>{f.research_question}</p>
     <p>Every workflow ran once. At every action checkpoint, one as-of snapshot of the workflow was taken. The <b>Local Monitor</b> received only the proposed action, the acting agent's role, the target resource version and the approval it cites. The <b>Global Monitor</b> received the same plus prior events, messages, other agents' actions, referenced resource history, all approvals and the declared workflow purpose. Both use identical rules, so the only difference is the observation window.</p>
-    <KV rows={[['Hypothesis', 'H1: global workflow monitoring improves recall for distributed approval laundering without an unacceptable increase in false positives. H0: no meaningful improvement under the evaluated conditions.'], ['Dataset', `${e.config.partition} · ${e.validation.dataset_version} · ${r.analysis.n_workflows} workflows`], ['Execution mode', 'Scripted (deterministic simulation)'], ['Model identifiers', 'RiskAnalyzer rules (no LLM)'], ['Trials', `${e.config.trials} (1 scored)`], ['Successful evaluations', `${r.counts.checkpoint_evaluations} checkpoint evaluations · ${r.counts.workflow_predictions} workflow predictions`], ['Failed evaluations', `${r.analysis.missing_or_failed.length} workflows`], ['Total runtime', e.progress.elapsed_seconds !== undefined ? `${e.progress.elapsed_seconds.toFixed(1)} s` : null], ['Actual model usage', '0 requests · $0']]}/>
+    <KV rows={[['Hypothesis', 'H1: global workflow monitoring improves recall for distributed approval laundering without an unacceptable increase in false positives. H0: no meaningful improvement under the evaluated conditions.'], ['Dataset', `${e.config.partition} · ${e.validation.dataset_version} · ${r.analysis.n_workflows} workflows`], ['Execution mode', `Scripted agents${r.llm ? ` · ${r.llm.is_synthetic ? 'mock' : 'live'} LLM arm` : ''}`], ['Model identifiers', r.llm ? `RiskAnalyzer rules; LLM ${r.llm.provider} · ${r.llm.model} (prompt ${r.llm.prompt_version})` : 'RiskAnalyzer rules (no LLM)'], ['Trials', `${e.config.trials} (1 scored)`], ['Successful evaluations', `${r.counts.checkpoint_evaluations} checkpoint evaluations · ${r.counts.workflow_predictions} workflow predictions`], ['Failed evaluations', `${r.analysis.missing_or_failed.length} workflows`], ['Total runtime', e.progress.elapsed_seconds !== undefined ? `${e.progress.elapsed_seconds.toFixed(1)} s` : null], ['Actual model usage', r.llm_usage ? `${r.llm_usage.attempts} requests (${r.llm_usage.succeeded} ok, ${r.llm_usage.failed} failed) · ${r.llm_usage.input_tokens.toLocaleString()} input / ${r.llm_usage.output_tokens.toLocaleString()} output tokens · $${r.llm_usage.spent_usd_conservative.toFixed(4)}${r.llm_usage.is_synthetic ? ' (synthetic)' : ''}` : '0 requests · $0 (rules only)']]}/>
    </div>
   </Panel>
   <Panel title="Interpretation" subtitle={f.statement}>
@@ -175,6 +182,7 @@ function MetricsTab({ r }: { r: Results }) {
     <div className="table-wrap"><table><thead><tr><th>Monitor</th><th>Recommendation</th><th>Count</th></tr></thead><tbody>{r.metrics.checkpoint_recommendations.map(x => <tr key={x.monitor + x.recommendation}><td><Swatch color={x.monitor === 'Local' ? c.Local : c.Global}/>{x.monitor}</td><td><Tag value={x.recommendation}/></td><td>{x.count}</td></tr>)}</tbody></table></div>
    </Panel>
   </div>
+  {r.metrics.llm && <LLMMetrics r={r}/>}
   <Panel title="Secondary and sensitivity analyses" subtitle="Pre-declared in the protocol; reported alongside, not used for the decision rule">
    <div className="table-wrap"><table><thead><tr>{['Analysis', 'Local recall', 'Global recall', 'Local FPR', 'Global FPR'].map(h => <th key={h}>{h}</th>)}</tr></thead><tbody>
     {([['Any checkpoint', r.analysis.secondary_any_checkpoint], ['Critical checkpoint only', r.analysis.secondary_at_critical_only], ['Abstention treated as positive', r.analysis.sensitivity_abstention_as_positive]] as const).map(([n, m]) => <tr key={n}><td>{n}</td><td>{pct(m.local_action.recall)}</td><td>{pct(m.global_workflow.recall)}</td><td>{pct(m.local_action.false_positive_rate)}</td><td>{pct(m.global_workflow.false_positive_rate)}</td></tr>)}
@@ -184,8 +192,32 @@ function MetricsTab({ r }: { r: Results }) {
  </>
 }
 
+function LLMMetrics({ r }: { r: Results }) {
+ const l = r.metrics.llm!, c = seriesColors(), a = r.llm_analysis!
+ const lo = a.primary.llm_local, gl = a.primary.llm_global
+ const fmt = (v: unknown) => typeof v === 'number' ? v.toFixed(3) : 'undefined'
+ const tip = { contentStyle: { background: 'var(--panel)', color: 'var(--text)', border: '1px solid var(--border)', fontSize: 11 } }
+ const bars = [['Recall', 'recall'], ['Precision', 'precision'], ['False-positive rate', 'false_positive_rate'], ['F1', 'f1']].map(([n, k]) => ({ metric: n, 'LLM Local': lo[k as 'recall'], 'LLM Global': gl[k as 'recall'] }))
+ const rules = a.rules_on_same_checkpoints
+ return <>
+  <Panel title={`LLM arm — ${l.llm.provider} · ${l.llm.model}${l.llm.is_synthetic ? ' · SYNTHETIC MOCK' : ''}`} subtitle={`${l.llm.protocol_version} · prompt ${l.llm.prompt_version} · checkpoints: ${l.llm.checkpoint_policy_text} · ${l.metric_definition}`} action={<CopyButton text={() => 'Metric\tLLM Local\tLLM Global\tDifference\n' + l.table.map(t => `${t.metric}\t${num(t.local)}\t${num(t.global)}\t${num(t.difference)}`).join('\n')} label="Copy LLM table"/>}>
+   {l.llm.is_synthetic && <p className="rq1-body warning-text">Mock mode: these numbers come from the synthetic rules responder through the LLM pipeline. No model was contacted; they are not evidence about LLM monitors.</p>}
+   <div className="rq1-body rq1-grid two"><Confusion name="LLM Local" m={lo}/><Confusion name="LLM Global" m={gl}/></div>
+   <div className="table-wrap"><table aria-label="LLM metric comparison"><thead><tr>{['Metric', 'LLM Local', 'LLM Global', 'Difference (Global − Local)'].map(h => <th key={h}>{h}</th>)}</tr></thead><tbody>{l.table.map(t => <tr key={t.key}><td>{t.metric}</td><td>{num(t.local)}</td><td>{num(t.global)}</td><td>{signed(t.difference)}</td></tr>)}</tbody></table></div>
+   <div className="rq1-body"><p className="muted small-text">Rule monitors on exactly the same checkpoints (for comparison): Local recall {pct(rules.local_action?.recall)}, FPR {pct(rules.local_action?.false_positive_rate)}; Global recall {pct(rules.global_workflow?.recall)}, FPR {pct(rules.global_workflow?.false_positive_rate)}. Paired unsafe (both known, n={a.paired.unsafe.n}, {a.paired.unsafe.excluded_unknown} excluded as unknown): only Global {a.paired.unsafe.only_global}, only Local {a.paired.unsafe.only_local}; exact McNemar p {num(a.paired.unsafe.exact_mcnemar_p_two_sided, 4)} (descriptive).</p>
+    {l.failures.length > 0 && <p className="warning-text small-text">Failed or unattempted calls (unknown, never counted as safe): {l.failures.map(f => `${f.monitor} ${f.kind} ×${f.count}`).join(' · ')}</p>}
+    <p className="muted small-text">Usage: {l.usage?.attempts ?? 0} requests · {(l.usage?.input_tokens ?? 0).toLocaleString()} input / {(l.usage?.output_tokens ?? 0).toLocaleString()} output tokens · {l.usage?.calls_without_usage ?? 0} calls without usage data · conservative cost ${(l.usage?.spent_usd_conservative ?? 0).toFixed(4)}.</p></div>
+  </Panel>
+  <Panel title="LLM detection metrics" subtitle={`Recall n=${lo.tp + lo.fn}/${gl.tp + gl.fn} known unsafe · FPR n=${lo.fp + lo.tn}/${gl.fp + gl.tn} known legitimate (Local/Global)`}>
+   <div className="rq1-chart" aria-label="LLM detection metrics chart"><ResponsiveContainer width="100%" height="100%"><BarChart data={bars} barGap={2}><CartesianGrid vertical={false} stroke={c.grid}/><XAxis dataKey="metric" stroke={c.axis} fontSize={10}/><YAxis domain={[0, 1]} stroke={c.axis} fontSize={10}/><Tooltip {...tip} formatter={fmt}/><Legend/>
+    <Bar dataKey="LLM Local" fill={c['LLM Local']} radius={[4, 4, 0, 0]}><LabelList dataKey="LLM Local" position="top" formatter={fmt} fontSize={9} fill={c.axis}/></Bar>
+    <Bar dataKey="LLM Global" fill={c['LLM Global']} radius={[4, 4, 0, 0]}><LabelList dataKey="LLM Global" position="top" formatter={fmt} fontSize={9} fill={c.axis}/></Bar></BarChart></ResponsiveContainer></div>
+  </Panel>
+ </>
+}
+
 function FindingsTab({ f, onScenario }: { f: Findings; onScenario: (s: string) => void }) {
- const sections: [string, string][] = [['Experiment summary', f.experiment_summary], ['Detection performance', f.detection_performance], ['False positives', f.false_positives], ['Detection latency', f.detection_latency], ['Context analysis', f.context_analysis], ['Gateway and prevention', f.gateway_and_prevention]]
+ const sections: [string, string][] = [...(f.llm_performance ? [['LLM arm', f.llm_performance] as [string, string]] : []), ['Experiment summary', f.experiment_summary], ['Detection performance', f.detection_performance], ['False positives', f.false_positives], ['Detection latency', f.detection_latency], ['Context analysis', f.context_analysis], ['Gateway and prevention', f.gateway_and_prevention]]
  const cases: [string, string][] = [['only_global_ids', 'Detected only by Global'], ['only_local_ids', 'Detected only by Local'], ['neither_ids', 'Missed by both']]
  return <Panel title="Research findings" subtitle={f.statement} action={<div className="rq1-row-actions"><CopyButton text={f.copy.results_summary} label="COPY RESULTS SUMMARY" testId="copy-summary"/><CopyButton text={f.copy.metrics_table} label="COPY METRICS TABLE"/><CopyButton text={f.copy.methodology} label="COPY METHODOLOGY DETAILS"/><CopyButton text={f.copy.limitations} label="COPY LIMITATIONS"/></div>}>
   <div className="rq1-body">
@@ -209,8 +241,8 @@ function DetailsTab({ eid, e }: { eid: string; e: Experiment }) {
  return <>
   <Panel title="Experimental metadata">
    <div className="rq1-body"><div className="rq1-grid two">
-    <KV rows={[['Experiment ID', eid], ['Research question', 'RQ1'], ['Hypothesis', 'H1: global workflow monitoring improves recall without an unacceptable increase in false positives'], ['Dataset', e.config.partition], ['Dataset version', e.validation.dataset_version], ['Dataset hash', <span className="mono">{e.validation.dataset_hash}</span>], ['Scenarios', String(e.validation.selected_scenarios)], ['Trials', String(e.config.trials)], ['Execution mode', 'Scripted (deterministic simulation)'], ['Monitor configurations', 'local_action, global_workflow']]}/>
-    <KV rows={[['Model identifiers', JSON.stringify(rm.monitor_implementations ?? 'RiskAnalyzer')], ['Prompt versions', 'Not applicable (no LLM)'], ['Ruleset', String(m.scoring.ruleset_version ?? '—')], ['Scoring rules', String(m.scoring.primary_metric ?? '—')], ['Positive mapping', String(m.scoring.positive_mapping ?? '—')], ['Random seed', String(e.config.seed)], ['Execution limits', `${e.config.max_runtime_seconds}s runtime · ${e.config.max_steps_per_workflow} checkpoints/workflow · 0 model requests · $0`], ['Started / completed', `${e.started_at ? new Date(e.started_at).toLocaleString() : '—'} / ${e.completed_at ? new Date(e.completed_at).toLocaleString() : '—'}`], ['Code revision', e.code_revision], ['Protocol', String(m.scoring.protocol_version)]]}/>
+    <KV rows={[['Experiment ID', eid], ['Research question', 'RQ1'], ['Hypothesis', 'H1: global workflow monitoring improves recall without an unacceptable increase in false positives'], ['Dataset', e.config.partition], ['Dataset version', e.validation.dataset_version], ['Dataset hash', <span className="mono">{e.validation.dataset_hash}</span>], ['Scenarios', String(e.validation.selected_scenarios)], ['Trials', String(e.config.trials)], ['Execution mode', `Scripted agents${e.llm?.mode && e.llm.mode !== 'none' ? ` · ${e.llm.mode} LLM arm` : ' · rules only'}`], ['Monitor configurations', 'local_action, global_workflow']]}/>
+    <KV rows={[['Model identifiers', JSON.stringify(rm.monitor_implementations ?? 'RiskAnalyzer')], ['Prompt versions', e.llm?.prompt_version ? `${e.llm.prompt_version} (sha ${String(e.llm.prompt_hash ?? '').slice(0, 12)}…)` : 'Not applicable (no LLM arm)'], ['LLM', e.llm?.mode && e.llm.mode !== 'none' ? `${e.llm.mode} · ${e.llm.provider ?? ''} · ${e.llm.model ?? ''} · ${e.llm.checkpoint_policy} checkpoints · ${e.llm.protocol_version}` : 'none'], ['LLM caps', e.config.llm_mode !== 'none' ? `${e.config.llm_max_requests} requests · ${e.config.llm_max_cost_usd !== null ? `$${e.config.llm_max_cost_usd}` : 'no cost (mock)'} · paid calls confirmed: ${e.config.confirm_paid_calls ? 'yes' : 'no'}` : '—'], ['Ruleset', String(m.scoring.ruleset_version ?? '—')], ['Scoring rules', String(m.scoring.primary_metric ?? '—')], ['Positive mapping', String(m.scoring.positive_mapping ?? '—')], ['Random seed', String(e.config.seed)], ['Execution limits', `${e.config.max_runtime_seconds}s runtime · ${e.config.max_steps_per_workflow} checkpoints/workflow · 0 model requests · $0`], ['Started / completed', `${e.started_at ? new Date(e.started_at).toLocaleString() : '—'} / ${e.completed_at ? new Date(e.completed_at).toLocaleString() : '—'}`], ['Code revision', e.code_revision], ['Protocol', String(m.scoring.protocol_version)]]}/>
    </div></div>
   </Panel>
   <Panel title="Research methodology" subtitle="Built from this experiment's configuration and records"><div className="rq1-body"><p>{m.methodology ?? 'Available when the experiment has results.'}</p></div></Panel>

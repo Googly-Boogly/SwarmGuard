@@ -19,7 +19,7 @@ from fastapi import FastAPI, HTTPException, Query, Request, Response
 from fastapi import Path as PathParam
 
 from swarmguard.console.auth import OperatorAuth
-from swarmguard.research import rq1_lab
+from swarmguard.research import rq1_lab, rq1_llm
 from swarmguard.research.hypothesis_registry import questions
 from swarmguard.research.rq1_lab import (EXPERIMENT_KIND, RESULT_KIND, RQ1ExperimentConfig, RQ1Laboratory,
                                          context_difference, context_sections, load_evidence, query_rows)
@@ -30,7 +30,8 @@ WF = r"^wf_\d{3}$"
 SID = r"^[a-z0-9_]{1,64}$"
 CONFIGS = ("local_action", "global_workflow")
 SUMMARY_FIELDS = ("experiment_id", "status", "config", "created_by", "created_at", "started_at", "completed_at",
-                  "progress", "error", "headline", "preregistered_procedure", "execution_mode", "integrity_problems")
+                  "progress", "error", "headline", "preregistered_procedure", "execution_mode", "integrity_problems",
+                  "llm", "llm_usage", "model_requests", "estimated_cost_usd")
 
 
 class RQ1Jobs:
@@ -43,7 +44,7 @@ class RQ1Jobs:
         self.tasks = [t for t in self.tasks if not t.done()]
         if len(self.tasks) >= 2:
             raise HTTPException(429, "RQ1 experiment queue full")
-        validation = await rq1_lab.validate_config(config)
+        validation = await self.lab.validate(config)
         record = self.lab.prepare(config, validation, actor)
 
         async def execute() -> None:
@@ -97,19 +98,22 @@ def register_rq1_routes(app: FastAPI, auth: OperatorAuth) -> None:
         auth.require_read(request, "RESEARCHER")
         records = repo().list(EXPERIMENT_KIND, 200)
         question = next(q for q in questions() if q["research_question_id"] == "RQ1")
-        return {"question": question, "datasets": rq1_lab.dataset_summaries(),
-                "recommended_config": rq1_lab.recommended_config().model_dump(),
+        llm_status = app.state.rq1.lab.llm_status()
+        return {"question": question, "datasets": rq1_lab.dataset_summaries(), "llm_status": llm_status,
+                "llm_policies": rq1_llm.POLICY_TEXT, "llm_protocol_version": rq1_llm.LLM_PROTOCOL_VERSION,
+                "recommended_config": rq1_lab.recommended_config(bool(llm_status.get("live", {}).get("available"))),
                 "pilot_config": RQ1ExperimentConfig(partition="development",
                                                     scenario_ids=list(rq1_lab.rq1.PILOT_SCENARIOS)).model_dump(),
                 "unavailable_options": rq1_lab.UNAVAILABLE_OPTIONS, "known_limitations": rq1_lab.KNOWN_LIMITATIONS,
                 "protocol_version": rq1_lab.rq1.PROTOCOL_VERSION, "frozen_dataset_hash": rq1_lab.FROZEN_DATASET_HASH,
                 "experiments": [{k: r.get(k) for k in SUMMARY_FIELDS} for r in records],
-                "execution_note": "Scripted agents and deterministic rule-based monitors; no model calls, $0."}
+                "execution_note": "Scripted agents; deterministic rule-based monitors plus an optional LLM arm "
+                                  "(mock or live provider, capped and confirmed)."}
 
     @app.post("/api/research/rq1/validate")
     async def validate(body: RQ1ExperimentConfig, request: Request) -> dict[str, Any]:
         auth.require(request, "RESEARCHER")
-        return await rq1_lab.validate_config(body)
+        return await app.state.rq1.lab.validate(body)
 
     @app.post("/api/research/rq1/experiments", status_code=202)
     async def start(body: RQ1ExperimentConfig, request: Request) -> dict[str, Any]:
@@ -151,6 +155,9 @@ def register_rq1_routes(app: FastAPI, auth: OperatorAuth) -> None:
                 "ablations": r["verification"].get("ablation_diagnostic", []),
                 "enforcement": r["results"]["enforcement"], "crosscheck": r["crosscheck"],
                 "reproducibility": r["reproducibility"], "failure_case_counts": r["failure_case_counts"],
+                "llm": r.get("llm"), "llm_usage": r.get("llm_usage"),
+                "llm_analysis": {k: v for k, v in (r.get("llm_analysis") or {}).items() if k != "rows"} or None,
+                "llm_failure_case_counts": r.get("llm_failure_case_counts"),
                 "findings": r["findings"], "counts": {"checkpoint_evaluations": len(r["checkpoint_rows"]),
                                                       "workflow_predictions": len(r["workflow_rows"]),
                                                       "scenarios": len(r["scenarios"])}}
@@ -181,13 +188,16 @@ def register_rq1_routes(app: FastAPI, auth: OperatorAuth) -> None:
     @app.get("/api/research/rq1/experiments/{eid}/raw/{wf}/{step}/{configuration}")
     async def raw_detail(request: Request, eid: str = PathParam(pattern=EID), wf: str = PathParam(pattern=WF),
                          step: int = PathParam(ge=1, le=1000),
-                         configuration: Literal["local_action", "global_workflow"] = PathParam()) -> dict[str, Any]:
+                         configuration: Literal["local_action", "global_workflow", "llm_local", "llm_global"] = PathParam()
+                         ) -> dict[str, Any]:
         auth.require_read(request, "RESEARCHER")
         r = result(eid)
         ev = evidence(eid, wf)
         cp = next((c for c in ev["checkpoints"] if c["step"] == step), None)
         if cp is None:
             raise HTTPException(404, "no checkpoint at this step")
+        if configuration in rq1_llm.LLM_CONFIGS:
+            return _llm_detail(eid, wf, step, configuration, r, ev, cp)
         e = cp["evaluations"][configuration]
         other = cp["evaluations"][CONFIGS[1 - CONFIGS.index(configuration)]]
         row = next(x for x in r["checkpoint_rows"] if x["row_id"] == f"{wf}:{step}:{configuration}")
@@ -269,6 +279,7 @@ def register_rq1_routes(app: FastAPI, auth: OperatorAuth) -> None:
         rows = {w["configuration"]: w for w in r["workflow_rows"] if w["workflow_id"] == wf and w["status"] == "COMPLETE"}
         truth = next(t for t in r["results"]["ground_truth"] if t["workflow_id"] == wf)
         steps = []
+        llm_rows = {w["configuration"]: w for w in r["workflow_rows"] if w["workflow_id"] == wf and w["configuration"] in rq1_llm.LLM_CONFIGS}
         for cp in ev["checkpoints"]:
             lo, gl = cp["evaluations"]["local_action"], cp["evaluations"]["global_workflow"]
             steps.append({"step": cp["step"], "action_id": cp["action_id"], "tool": lo["input"]["action"]["tool"],
@@ -277,10 +288,12 @@ def register_rq1_routes(app: FastAPI, auth: OperatorAuth) -> None:
                           "differs": {"prediction": lo["alert"] != gl["alert"],
                                       "recommendation": lo["output"]["recommendation"] != gl["output"]["recommendation"],
                                       "risk": lo["output"]["risk_level"] != gl["output"]["risk_level"],
-                                      "evidence": sorted(lo["output"]["evidence_event_ids"]) != sorted(gl["output"]["evidence_event_ids"])}})
+                                      "evidence": sorted(lo["output"]["evidence_event_ids"]) != sorted(gl["output"]["evidence_event_ids"])},
+                          "llm": {cfg: _llm_side(cp, cfg) for cfg in rq1_llm.LLM_CONFIGS} if "llm" in cp else None})
         return {"workflow_id": wf, "scenario_id": ev["scenario_id"], "ground_truth": truth["label"],
                 "description": truth["description"], "critical_action_id": ev["critical_action_id"],
                 "local": rows.get("local_action"), "global": rows.get("global_workflow"), "steps": steps,
+                "llm_local": llm_rows.get("llm_local"), "llm_global": llm_rows.get("llm_global"), "llm": r.get("llm"),
                 "ablations": [a for a in r["verification"].get("ablation_diagnostic", []) if a["workflow_id"] == wf]}
 
     @app.get("/api/research/rq1/experiments/{eid}/failures")
@@ -288,6 +301,8 @@ def register_rq1_routes(app: FastAPI, auth: OperatorAuth) -> None:
         auth.require_read(request, "RESEARCHER")
         r = result(eid)
         return {"counts": r["failure_case_counts"], "cases": r["failure_cases"],
+                "llm_counts": r.get("llm_failure_case_counts"), "llm_cases": r.get("llm_failure_cases", []),
+                "llm_failures": (r.get("llm_analysis") or {}).get("failures", []),
                 "integrity": {"crosscheck": r["crosscheck"], "verification_failures": r["verification"]["failures"],
                               "missing_or_failed": r["analysis"]["missing_or_failed"]}}
 
@@ -312,6 +327,8 @@ def register_rq1_routes(app: FastAPI, auth: OperatorAuth) -> None:
                 "verification": {k: v for k, v in r["verification"].items() if k != "ablation_diagnostic"} if r else None,
                 "crosscheck": r["crosscheck"] if r else None, "reproducibility": r["reproducibility"] if r else None,
                 "methodology": r["findings"]["experiment_summary"] if r else None,
+                "llm": record.get("llm"), "llm_usage": record.get("llm_usage"),
+                "llm_metric_definition": (r.get("llm_analysis") or {}).get("metric_definition") if r else None,
                 "limitations": r["findings"]["limitations"] if r else rq1_lab.KNOWN_LIMITATIONS}
 
     @app.get("/api/research/rq1/experiments/{eid}/download")
@@ -369,3 +386,75 @@ def _permissions(agents: list[dict[str, Any]]) -> list[dict[str, Any]]:
             continue
         out.append({**a, "permitted_tools": sorted(DEFAULT_POLICY.role_permissions.get(role, []))})
     return out
+
+
+def _llm_side(cp: dict[str, Any], cfg: str) -> dict[str, Any]:
+    e, stored = cp["llm"][cfg], cp["llm_inputs"][cfg]
+    a = e.get("assessment") or {}
+    obs = stored["context"]["observation"]
+    return {"status": e["status"], "recommendation": e.get("recommendation"), "risk_level": e.get("risk_level"),
+            "uncertainty": e.get("uncertainty"), "alert": e["alert"], "concerns": a.get("concerns", []),
+            "evidence_event_ids": a.get("evidence_event_ids", []), "explanation": a.get("explanation"),
+            "insufficient_evidence": a.get("insufficient_evidence"), "error": e.get("error"),
+            "latency_ms": e.get("latency_ms"), "usage": (e.get("call") or {}).get("usage"),
+            "input_bytes": stored["user_content_bytes"],
+            "scope": {"events": len(obs.get("events", [])), "prior_actions": len(obs.get("prior_actions", [])),
+                      "resources": len(obs.get("resources", [])), "approvals": len(obs.get("approvals", [])),
+                      "workflow_purpose": obs.get("workflow_purpose") is not None}}
+
+
+def _llm_detail(eid: str, wf: str, step: int, cfg: str, r: dict[str, Any], ev: dict[str, Any], cp: dict[str, Any]) -> dict[str, Any]:
+    if "llm" not in cp:
+        raise HTTPException(404, "the LLM arm did not evaluate this checkpoint (checkpoint policy)")
+    e, stored = cp["llm"][cfg], cp["llm_inputs"][cfg]
+    try:
+        content = rq1_llm.exact_user_content(stored)
+    except ValueError as exc:
+        raise HTTPException(500, str(exc)) from None
+    row = next(x for x in r["checkpoint_rows"] if x["row_id"] == f"{wf}:{step}:{cfg}")
+    wrow = next(x for x in r["workflow_rows"] if x["row_id"] == f"{wf}:{cfg}")
+    truth = next(t for t in r["results"]["ground_truth"] if t["workflow_id"] == wf)
+    obs = stored["context"]["observation"]
+    invariants = {i["invariant_id"]: i for i in obs.get("invariants", [])}
+    decision = next((d for d in ev["decisions"] if d["action_id"] == cp["action_id"]), None)
+    event = next((x for x in ev["events"] if x["seq"] == cp["checkpoint_seq"]), None)
+    other_cfg = rq1_llm.LLM_LOCAL if cfg == rq1_llm.LLM_GLOBAL else rq1_llm.LLM_GLOBAL
+    other = cp["llm"][other_cfg]
+    a = e.get("assessment") or {}
+    llm = r.get("llm") or {}
+    return {
+        "basic": {"experiment_id": eid, "scenario_id": ev["scenario_id"], "workflow_id": wf, "trial": 1, "step": step,
+                  "checkpoint_seq": cp["checkpoint_seq"], "agent_id": row["agent_id"], "action": obs["action"],
+                  "timestamp": event["created_at"] if event else None, "timestamp_note": "Synthetic simulator clock",
+                  "monitor": row["monitor"], "position": row["position"], "critical_step": row["critical_step"]},
+        "ground_truth": {"label": truth["label"], "safety_property": truth["safety_property"],
+                         "violated_invariants": [invariants.get(i, {"invariant_id": i}) for i in truth["violated_invariants"]],
+                         "description": truth["description"], "rationale": truth["rationale"],
+                         "expected_authorization": truth["expected_authorization"],
+                         "prohibited_outcome": truth.get("prohibited_outcome"), "category": row["category"],
+                         "workflow_prediction": wrow["workflow_prediction"], "workflow_outcome": wrow["outcome"],
+                         "note": "Researcher view only. Labels were joined after LLM predictions were stored and never "
+                                 "reached the model."},
+        "monitor_input": context_sections(obs), "input_bytes": stored["user_content_bytes"],
+        "llm_prompt": {"provider": llm.get("provider"), "model": llm.get("model"), "is_synthetic": llm.get("is_synthetic"),
+                       "prompt_version": llm.get("prompt_version"), "prompt_hash": llm.get("prompt_hash"),
+                       "system_prompt_sha256": llm.get("system_prompt_sha256"), "user_content": content,
+                       "user_content_sha256": stored["user_content_sha256"],
+                       "note": "The system prompt is a trusted constant; workflow data is sent only in this JSON user message."},
+        "monitor_output": {"recommendation": e.get("recommendation") or e["status"], "risk_level": e.get("risk_level") or "UNKNOWN",
+                           "uncertainty": e.get("uncertainty") or "UNKNOWN", "alert": e["alert"], "status": e["status"],
+                           "detected_patterns": [], "findings": [], "evidence_event_ids": a.get("evidence_event_ids", []),
+                           "explanation": a.get("explanation") or (e.get("error") or {}).get("message"),
+                           "missing_information": ["insufficient evidence reported by the model"] if a.get("insufficient_evidence") else [],
+                           "concerns": a.get("concerns", []), "legitimate_interpretations": a.get("legitimate_interpretations", []),
+                           "error": e.get("error"), "usage": (e.get("call") or {}).get("usage"),
+                           "latency_ms": e.get("latency_ms"), "method": f"LLM · {llm.get('provider')} · {llm.get('model')}",
+                           "ruleset_version": llm.get("prompt_version"), "is_synthetic": llm.get("is_synthetic")},
+        "paired_monitor": {"monitor": rq1_llm.LLM_LABEL[other_cfg], "recommendation": other.get("recommendation") or other["status"],
+                           "risk_level": other.get("risk_level") or "UNKNOWN", "alert": other["alert"], "detected_patterns": []},
+        "authorization": decision,
+        "outcome": {"executed": decision["executed"] if decision else None,
+                    "execution_status": decision["execution_status"] if decision else None,
+                    "sent_emails": [m for m in ev["sent_emails"] if m.get("action_id") == cp["action_id"]],
+                    "workflow_prohibited_outcome_occurred": None},
+        "original": {"llm_input_context": stored["context"], "llm_result": e, "gateway_decision": decision}}
