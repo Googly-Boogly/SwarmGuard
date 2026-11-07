@@ -19,4 +19,5 @@ from pathlib import Path
 app = create_console_app(os.environ.get("SWARMGUARD_CONSOLE_DB", "swarmguard_console.db"),
                          operator_file=Path(os.environ.get("SWARMGUARD_OPERATOR_FILE", ".console/operator.json")),
                          secure_cookie=os.environ.get("SWARMGUARD_COOKIE_SECURE", "true").lower() != "false",
+                         local_access=os.environ.get("SWARMGUARD_LOCAL_ACCESS", "true").lower() == "true",
                          code_revision=code_revision())

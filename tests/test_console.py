@@ -342,7 +342,7 @@ def test_queue_capacity_and_queued_cancellation(client):
 
 
 def test_secure_default_no_operator_configuration(tmp_path):
-    with TestClient(create_console_app(tmp_path/'disabled.db',operator_file=tmp_path/'missing'),base_url='https://localhost') as c:
+    with TestClient(create_console_app(tmp_path/'disabled.db',operator_file=tmp_path/'missing',accounts={}),base_url='https://localhost') as c:
         assert c.get('/api/session').json()['login_available'] is False
         assert c.post('/api/session',json={'password':PASSWORD},headers=ORIGIN).status_code==503
 

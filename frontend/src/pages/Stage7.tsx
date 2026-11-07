@@ -4,7 +4,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Badge, Empty, ErrorBox, JsonView, Loading, PageTitle, Panel } from '../components/common'
 import { Button } from '../components/ui/button'
 import { Dialog } from '../components/ui/dialog'
-import { post, useApi, type Json } from '../lib/api/client'
+import { post, useApi, type Json, type Session } from '../lib/api/client'
 
 type SessionRoles = { authenticated: boolean; operator_id?: string | null; roles?: string[] }
 type Emergency = { active: boolean; activated_by?: string; reason?: string; activated_at?: string; recovered_by?: string; version: number }
@@ -23,7 +23,10 @@ function useSession() {
  return { authenticated: !!s?.authenticated, user: s?.operator_id ?? null, has: (...r: string[]) => r.some(x => roles.has(x)) }
 }
 
-function NeedsLogin({ roles }: { roles: string }) { return <Empty title="Operator login required" detail={`This view requires one of: ${roles}. Roles are assigned server-side when accounts are provisioned.`}/> }
+function NeedsLogin({ roles }: { roles: string }) {
+ const session = useApi<Session>('/api/session').data
+ return <Empty title={session?.login_required === false ? 'Required role unavailable in the local console' : 'Operator login required'} detail={`This view requires one of: ${roles}. Roles are assigned server-side.`}/>
+}
 
 /** Sensitive action: requires a typed reason, an explicit confirmation and (optionally) a typed phrase. */
 export function ConfirmAction({ label, title, warning, phrase, destructive = true, onConfirm, disabled }: { label: string; title: string; warning: string; phrase?: string; destructive?: boolean; disabled?: boolean; onConfirm: (reason: string, typed: string) => Promise<unknown> }) {

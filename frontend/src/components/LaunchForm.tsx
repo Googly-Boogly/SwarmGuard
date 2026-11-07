@@ -26,7 +26,7 @@ export function LaunchForm({ kind = 'workflow', initialScenario }: { kind?: 'wor
  <label>Maximum spending (USD)<input type="number" min="0" max="0" value="0" readOnly/><small>Mock mode: no billable requests. One worker; concurrency 1.</small></label></div>
  <p className="muted small-text">HUMAN_OVERSIGHT uses the existing guard to escalate risk. ENFORCEMENT sets the fixed synthetic recipient scope in deterministic policy. Council recommendations remain advisory. Scripted replay contains its own simulated human.</p>
  {review && <div className="notice"><strong>Configuration ready for review</strong><p>{config.scenario_ids.join(', ')} · {config.trials} trial(s) · {config.monitoring} · {config.intervention} · at most {config.max_steps} steps per workflow and {config.max_llm_requests} provider requests per job.</p></div>}
- {!session.data?.authenticated && <p className="warning-text">Sign in as the local operator using the button in the top bar to launch runs.</p>}
+ {session.data && session.data.login_required !== false && !session.data.authenticated && <p className="warning-text">Sign in as the local operator using the button in the top bar to launch runs.</p>}
  {mutation.error && <ErrorBox error={mutation.error}/>}
  <Button type="submit" disabled={!session.data?.authenticated || mutation.isPending || !config.scenario_ids.length}><Play size={15}/>{mutation.isPending ? 'Starting…' : review ? `Start ${kind}` : 'Review configuration'}</Button>
  </form>

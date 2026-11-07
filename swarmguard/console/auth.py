@@ -94,12 +94,14 @@ class OperatorSession:
 
 
 class OperatorAuth:
-    def __init__(self, credentials: str | dict[str, OperatorAccount] | None, clock: Clock) -> None:
+    def __init__(self, credentials: str | dict[str, OperatorAccount] | None, clock: Clock,
+                 *, local_access: bool = False) -> None:
         if isinstance(credentials, str):
             self.accounts = {OPERATOR: OperatorAccount(OPERATOR, credentials, LEGACY_ROLES)}
         else:
             self.accounts = dict(credentials or {})
         self.clock = clock
+        self.local_access = local_access
         self.sessions: dict[str, OperatorSession] = {}
         self.failures: list[float] = []
         self._user_failures: dict[str, list[float]] = {}
@@ -125,6 +127,8 @@ class OperatorAuth:
 
     def login(self, request: Request, password: str, username: str | None = None) -> str:
         self.origin(request)
+        if self.local_access:
+            raise HTTPException(404, "password login is disabled for the local console")
         now = self.clock.now().timestamp()
         name = username or OPERATOR
         self.failures = [t for t in self.failures if t > now - 60]
@@ -142,14 +146,26 @@ class OperatorAuth:
             user_failures.append(now)
             self._audit("LOGIN_FAILED", name if account else "unknown_account", "invalid operator credentials")
             raise HTTPException(401, "invalid operator credentials")
+        return self._new_session(account.username, account.roles, "LOGIN")
+
+    def open_local_session(self, request: Request) -> str | None:
+        if not self.local_access:
+            raise HTTPException(404, "local console access is disabled")
+        self.origin(request)
+        if self.session(request):
+            return None
+        return self._new_session(OPERATOR, LEGACY_ROLES, "LOCAL_SESSION_CREATED")
+
+    def _new_session(self, username: str, roles: frozenset[str], event: str) -> str:
+        now = self.clock.now().timestamp()
         self.sessions = {k: v for k, v in self.sessions.items() if v.expires > now}
         if len(self.sessions) >= 32:
             raise HTTPException(429, "operator session limit reached")
         token = secrets.token_urlsafe(32)
         self.sessions[hashlib.sha256(token.encode()).hexdigest()] = OperatorSession(
             csrf=secrets.token_urlsafe(32), expires=now + SESSION_LIFETIME.total_seconds(),
-            username=account.username, roles=account.roles)
-        self._audit("LOGIN", account.username, f"roles {sorted(account.roles)}")
+            username=username, roles=roles)
+        self._audit(event, username, f"roles {sorted(roles)}")
         return token
 
     def session(self, request: Request) -> OperatorSession | None:

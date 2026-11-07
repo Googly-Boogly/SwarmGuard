@@ -86,6 +86,7 @@ class SessionView(BaseModel):
     operator_id: str | None = None
     csrf_token: str | None = None
     login_available: bool
+    login_required: bool = True
     roles: list[str] = Field(default_factory=list)
 
 

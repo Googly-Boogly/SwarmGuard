@@ -32,6 +32,7 @@ Main endpoint groups:
 | `GET /api/workflows/{id}/records`, `/graph` | Actions, decisions, messages, resources, agent decisions, assessments, simulated sends, graph service |
 | `GET /api/approvals` | Exact-operation review packets without signing material |
 | `POST /api/session`, `/api/session/logout` | Operator authentication / revocation |
+| `POST /api/session/local` | Automatic session creation for the local synthetic console; no credentials accepted |
 | `POST /api/workflows`, `/api/experiments` | Strict bounded configurations, authenticated job launch |
 | `POST /api/jobs/{id}/pause`, `/resume`, `/stop` | Trusted cooperative control; stop waits for cleanup |
 | `POST /api/approvals/{id}` | Exact reviewed hash and confirmation through existing ApprovalManager |
@@ -47,6 +48,10 @@ GET requests never launch jobs or make LLM requests. All read queries use `mode=
 `useWorkflowEvents` fetches missed events in pages, merges by event ID, sorts by sequence, reconnects, and retains a 1.5-second cursor-based recovery poll. Unauthenticated viewers use polling exclusively. This also recovers missed events after a connection interruption. Set Uvicorn `--ws-max-size 16384`; the application implements server delivery only, without any browser-to-agent message protocol. Normal query polling is configurable; active workflow recovery remains on for event continuity.
 
 ## Authentication and approval security
+
+The local `console_main:app` entry point and development Compose stack default to password-free access (`SWARMGUARD_LOCAL_ACCESS=true`). The frontend reads `/api/session`, then automatically posts an empty JSON object to `/api/session/local` when needed. This creates the same bounded, expiring server-side session and HttpOnly cookie without showing login or sign-out controls. The server fixes the identity to `human_operator` with only RESEARCHER and OPERATOR roles; clients cannot choose identity or roles. Bootstrap requires an allowed Origin and JSON; subsequent mutations still require the session's CSRF token. Local access trusts access to the loopback browser console rather than authenticating an individual human. Keep the local stack bound to loopback. GETs do not create sessions or launch work.
+
+Password-free access is rejected when a control plane is supplied or in-process execution is disabled. The separated control service retains its account and role checks. Password-based local configuration remains available with `SWARMGUARD_LOCAL_ACCESS=false`; the following provisioning/login details apply to that mode.
 
 `setup_console_operator.py` reads a hidden password twice, requires at least twelve characters, and writes only a salted scrypt hash into `.console/operator.json` with mode 0600. No default operator password exists. Provisioning requires local filesystem authority and is never an HTTP endpoint.
 

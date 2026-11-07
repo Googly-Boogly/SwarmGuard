@@ -166,3 +166,7 @@ control service, database, host CLI. Mitigations and residual risks are listed i
 approval-integrity key shared by trusted services; no mTLS internally; a runtime holding several agents'
 credentials can act as any of them; a database writer can rewrite the audit chain unless external checkpoints
 are kept in a separate trust domain; single-process rate limits.
+
+## Local console access mode
+
+The local synthetic console now opens without a password or account setup. It trusts access to the loopback console, rather than verifying a human's identity. A same-origin JSON bootstrap creates an expiring server-side session for a fixed simulated human with RESEARCHER and OPERATOR roles. Origin, JSON, CSRF, role checks, exact-operation approval confirmation and gateway authorization remain enforced; the bootstrap accepts no identity, role or approver fields. This mode cannot be combined with the separated control plane or hardened execution mode. Password-based account authentication remains available for those services. The development Compose frontend remains published on loopback only.

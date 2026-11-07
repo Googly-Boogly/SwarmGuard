@@ -18,7 +18,7 @@ from swarmguard.clock import Clock, SystemClock
 from swarmguard.console.auth import COOKIE, ALLOWED_ORIGINS, OperatorAuth, load_password
 from swarmguard.console.catalog import SCENARIOS
 from swarmguard.console.jobs import ACTIVE, JobManager, measured_results
-from swarmguard.console.models import AgentView, ApprovalDecision, JobRecord, Login, RunConfig, ScenarioView, SessionView
+from swarmguard.console.models import AgentView, ApprovalDecision, Command, JobRecord, Login, RunConfig, ScenarioView, SessionView
 from swarmguard.models.actions import ID_PATTERN
 from swarmguard.models.approvals import ApprovalStatus
 from swarmguard.models.decisions import DecisionRecord
@@ -79,15 +79,21 @@ def create_console_app(db_path: str | Path = "swarmguard_console.db", *,
                        secure_cookie: bool = True, clock: Clock | None = None,
                        step_delay: float = .06, code_revision: str = "unavailable",
                        accounts: dict[str, Any] | None = None, control_plane: Any | None = None,
-                       checkpoint_dir: Path | None = None, inprocess_execution: bool = True) -> FastAPI:
+                       checkpoint_dir: Path | None = None, inprocess_execution: bool = True,
+                       local_access: bool = False) -> FastAPI:
     path = str(db_path)
     clock = clock or SystemClock()
-    if accounts is None and encoded_password is None:
+    if local_access and (not inprocess_execution or control_plane is not None):
+        raise ValueError("Login-free local access requires the in-process synthetic console without a control plane")
+    if local_access:
+        accounts = {}
+    elif accounts is None and encoded_password is None:
         import os
         from swarmguard.console.auth import load_accounts
         accounts = load_accounts(Path(os.environ.get("SWARMGUARD_OPERATORS_FILE", ".console/operators.json"))) or None
     auth = OperatorAuth(accounts if accounts is not None else
-                        (encoded_password if encoded_password is not None else load_password(operator_file)), clock)
+                        (encoded_password if encoded_password is not None else load_password(operator_file)), clock,
+                        local_access=local_access)
     observation = create_app(path)
 
     @asynccontextmanager
@@ -226,7 +232,21 @@ def create_console_app(db_path: str | Path = "swarmguard_console.db", *,
         s = auth.session(request)
         return SessionView(authenticated=bool(s), operator_id=s.username if s else None,
                            csrf_token=s.csrf if s else None, login_available=auth.password is not None,
-                           roles=sorted(s.roles) if s else [])
+                           roles=sorted(s.roles) if s else [], login_required=not local_access)
+
+    @app.post("/api/session/local", response_model=SessionView)
+    async def local_session(body: Command, request: Request, response: Response) -> SessionView:
+        token = auth.open_local_session(request)
+        if token is not None:
+            response.set_cookie(COOKIE, token, httponly=True, secure=secure_cookie, samesite="strict", max_age=3600, path="/")
+            import hashlib
+            s = auth.sessions[hashlib.sha256(token.encode()).hexdigest()]
+        else:
+            s = auth.session(request)
+        if s is None:
+            raise HTTPException(401, "local console session unavailable")
+        return SessionView(authenticated=True, operator_id=s.username, csrf_token=s.csrf,
+                           login_available=False, login_required=False, roles=sorted(s.roles))
 
     @app.post("/api/session", response_model=SessionView)
     async def login(body: Login, request: Request, response: Response) -> SessionView:

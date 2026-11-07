@@ -5,6 +5,8 @@ from swarmguard.models.risk import MonitorContext
 from swarmguard.monitoring.evidence_validator import validate_evidence
 from swarmguard.research.reproducibility import digest
 from swarmguard.research.statistical_analysis import analyze
+from swarmguard.research.experiment_designer import ExperimentConfig
+from swarmguard.models.adversarial import ScenarioDefinition
 
 
 def validate_result(record: dict[str, Any]) -> dict[str, Any]:
@@ -12,7 +14,10 @@ def validate_result(record: dict[str, Any]) -> dict[str, Any]:
     rows = record["rows"]
     ds = record["dataset"]
     specs = {s["scenario_id"]: s for s in ds["definition"]["scenarios"]}
-    planned = len(specs)*record["config"]["trials"]
+    config = ExperimentConfig.model_validate(record["config"])
+    schedule = config.trial_schedule([ScenarioDefinition.model_validate(s) for s in specs.values()])
+    planned = len(schedule)
+    scheduled_ids = {f"{s.scenario_id}:t{trial}" for trial, s in schedule}
     seen = set()
     payload = {k: ds[k] for k in ("definition", "truth_hashes", "scenario_source_hash", "parent_hash")}
     if digest(payload) != ds["content_hash"] or record["manifest"]["dataset_hash"] != ds["content_hash"]:
@@ -23,6 +28,8 @@ def validate_result(record: dict[str, Any]) -> dict[str, Any]:
         if not tid or tid in seen:
             errors.append("missing or duplicate trial identifier")
         seen.add(tid)
+        if tid not in scheduled_ids:
+            errors.append("trial outside the pre-registered schedule")
         if sid not in specs:
             errors.append("unknown scenario")
             continue

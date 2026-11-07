@@ -654,6 +654,1573 @@
         }
       }
     },
+    "/api/research/lab/catalog": {
+      "get": {
+        "summary": "Catalog",
+        "operationId": "catalog_api_research_lab_catalog_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Catalog Api Research Lab Catalog Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/research/lab/experiments": {
+      "post": {
+        "summary": "Start",
+        "operationId": "start_api_research_lab_experiments_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExperimentConfig"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Start Api Research Lab Experiments Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/research/lab/experiments/{eid}": {
+      "get": {
+        "summary": "Detail",
+        "operationId": "detail_api_research_lab_experiments__eid__get",
+        "parameters": [
+          {
+            "name": "eid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Eid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Detail Api Research Lab Experiments  Eid  Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/research/lab/experiments/{eid}/cancel": {
+      "post": {
+        "summary": "Cancel",
+        "operationId": "cancel_api_research_lab_experiments__eid__cancel_post",
+        "parameters": [
+          {
+            "name": "eid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Eid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReportRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "boolean"
+                  },
+                  "title": "Response Cancel Api Research Lab Experiments  Eid  Cancel Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/research/lab/datasets": {
+      "post": {
+        "summary": "Dataset",
+        "operationId": "dataset_api_research_lab_datasets_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DatasetDefinition"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Dataset Api Research Lab Datasets Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/research/lab/experiments/{eid}/report": {
+      "post": {
+        "summary": "Report",
+        "operationId": "report_api_research_lab_experiments__eid__report_post",
+        "parameters": [
+          {
+            "name": "eid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Eid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReportRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Report Api Research Lab Experiments  Eid  Report Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/research/lab/experiments/{eid}/bundle": {
+      "get": {
+        "summary": "Bundle",
+        "operationId": "bundle_api_research_lab_experiments__eid__bundle_get",
+        "parameters": [
+          {
+            "name": "eid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Eid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/research/lab/experiments/{eid}/ablations": {
+      "get": {
+        "summary": "Ablation",
+        "operationId": "ablation_api_research_lab_experiments__eid__ablations_get",
+        "parameters": [
+          {
+            "name": "eid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Eid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Ablation Api Research Lab Experiments  Eid  Ablations Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/integrations": {
+      "get": {
+        "summary": "Integrations",
+        "operationId": "integrations_api_integrations_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Integrations Api Integrations Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/integrations/{integration_id}": {
+      "get": {
+        "summary": "Integration",
+        "operationId": "integration_api_integrations__integration_id__get",
+        "parameters": [
+          {
+            "name": "integration_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Integration Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Integration Api Integrations  Integration Id  Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/integrations/{integration_id}/{section}": {
+      "get": {
+        "summary": "Integration Records",
+        "operationId": "integration_records_api_integrations__integration_id___section__get",
+        "parameters": [
+          {
+            "name": "integration_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Integration Id"
+            }
+          },
+          {
+            "name": "section",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Section"
+            }
+          },
+          {
+            "name": "after_seq",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "title": "After Seq"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Integration Records Api Integrations  Integration Id   Section  Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/runtime/events": {
+      "get": {
+        "summary": "Runtime Events",
+        "operationId": "runtime_events_api_runtime_events_get",
+        "parameters": [
+          {
+            "name": "after_seq",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "title": "After Seq"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": true
+                  },
+                  "title": "Response Runtime Events Api Runtime Events Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/platform/jobs": {
+      "get": {
+        "summary": "Jobs",
+        "operationId": "jobs_api_platform_jobs_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  "type": "array",
+                  "title": "Response Jobs Api Platform Jobs Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/platform/jobs/{job_id}": {
+      "get": {
+        "summary": "Job",
+        "operationId": "job_api_platform_jobs__job_id__get",
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Job Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Job Api Platform Jobs  Job Id  Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/integrations/runs": {
+      "post": {
+        "summary": "Start Integration",
+        "operationId": "start_integration_api_integrations_runs_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IntegrationLaunch"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Start Integration Api Integrations Runs Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/evaluation/frameworks/runs": {
+      "post": {
+        "summary": "Start Evaluation",
+        "operationId": "start_evaluation_api_evaluation_frameworks_runs_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApplicationConfig"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Start Evaluation Api Evaluation Frameworks Runs Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/evaluation/frameworks": {
+      "get": {
+        "summary": "Evaluations",
+        "operationId": "evaluations_api_evaluation_frameworks_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  "type": "array",
+                  "title": "Response Evaluations Api Evaluation Frameworks Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/evaluation/runtime-overhead": {
+      "get": {
+        "summary": "Overhead",
+        "operationId": "overhead_api_evaluation_runtime_overhead_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  "type": "array",
+                  "title": "Response Overhead Api Evaluation Runtime Overhead Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/platform/jobs/{job_id}/cancel": {
+      "post": {
+        "summary": "Cancel",
+        "operationId": "cancel_api_platform_jobs__job_id__cancel_post",
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Job Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Command"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "boolean"
+                  },
+                  "title": "Response Cancel Api Platform Jobs  Job Id  Cancel Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/regression/baselines": {
+      "get": {
+        "summary": "Baselines",
+        "operationId": "baselines_api_regression_baselines_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  "type": "array",
+                  "title": "Response Baselines Api Regression Baselines Get"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Designate",
+        "operationId": "designate_api_regression_baselines_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BaselineDesignation"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Designate Api Regression Baselines Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/regression/runs": {
+      "get": {
+        "summary": "Regression Runs",
+        "operationId": "regression_runs_api_regression_runs_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  "type": "array",
+                  "title": "Response Regression Runs Api Regression Runs Get"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Regression Start",
+        "operationId": "regression_start_api_regression_runs_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegressionLaunch"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Regression Start Api Regression Runs Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/regression/runs/{run_id}/report": {
+      "get": {
+        "summary": "Regression Report",
+        "operationId": "regression_report_api_regression_runs__run_id__report_get",
+        "parameters": [
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Run Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Regression Report Api Regression Runs  Run Id  Report Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/regression/runs/{run_id}": {
+      "get": {
+        "summary": "Regression Report",
+        "operationId": "regression_report_api_regression_runs__run_id__get",
+        "parameters": [
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Run Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Regression Report Api Regression Runs  Run Id  Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/security/status": {
+      "get": {
+        "summary": "Status",
+        "operationId": "status_api_v1_security_status_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Status Api V1 Security Status Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/security/events": {
+      "get": {
+        "summary": "Events",
+        "operationId": "events_api_v1_security_events_get",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 200,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": true
+                  },
+                  "title": "Response Events Api V1 Security Events Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/security/identities": {
+      "get": {
+        "summary": "Identities",
+        "operationId": "identities_api_v1_security_identities_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Identities Api V1 Security Identities Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/security/operations": {
+      "get": {
+        "summary": "Operations",
+        "operationId": "operations_api_v1_security_operations_get",
+        "parameters": [
+          {
+            "name": "state",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "State"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": true
+                  },
+                  "title": "Response Operations Api V1 Security Operations Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/security/operations/{operation_id}": {
+      "get": {
+        "summary": "Operation",
+        "operationId": "operation_api_v1_security_operations__operation_id__get",
+        "parameters": [
+          {
+            "name": "operation_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_.:-]{1,64}$",
+              "title": "Operation Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Operation Api V1 Security Operations  Operation Id  Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/audit/verification": {
+      "get": {
+        "summary": "Verification",
+        "operationId": "verification_api_v1_audit_verification_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Verification Api V1 Audit Verification Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/audit/checkpoints": {
+      "get": {
+        "summary": "Checkpoints",
+        "operationId": "checkpoints_api_v1_audit_checkpoints_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  "type": "array",
+                  "title": "Response Checkpoints Api V1 Audit Checkpoints Get"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Checkpoint",
+        "operationId": "checkpoint_api_v1_audit_checkpoints_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Confirmed"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Checkpoint Api V1 Audit Checkpoints Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/services/health": {
+      "get": {
+        "summary": "Services",
+        "operationId": "services_api_v1_services_health_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Services Api V1 Services Health Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/services/metrics": {
+      "get": {
+        "summary": "Metrics",
+        "operationId": "metrics_api_v1_services_metrics_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Metrics Api V1 Services Metrics Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/security/identities/{identity_id}/revoke": {
+      "post": {
+        "summary": "Revoke Identity",
+        "operationId": "revoke_identity_api_v1_security_identities__identity_id__revoke_post",
+        "parameters": [
+          {
+            "name": "identity_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_.:-]{1,64}$",
+              "title": "Identity Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Confirmed"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Revoke Identity Api V1 Security Identities  Identity Id  Revoke Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/security/emergency-stop": {
+      "post": {
+        "summary": "Emergency Stop",
+        "operationId": "emergency_stop_api_v1_security_emergency_stop_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Confirmed"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Emergency Stop Api V1 Security Emergency Stop Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/security/emergency-stop/recover": {
+      "post": {
+        "summary": "Emergency Recover",
+        "operationId": "emergency_recover_api_v1_security_emergency_stop_recover_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Recovery"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Emergency Recover Api V1 Security Emergency Stop Recover Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/security/capabilities/{tool}": {
+      "post": {
+        "summary": "Capability",
+        "operationId": "capability_api_v1_security_capabilities__tool__post",
+        "parameters": [
+          {
+            "name": "tool",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9_]{0,63}$",
+              "title": "Tool"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CapabilityChange"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Capability Api V1 Security Capabilities  Tool  Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/security/workflows/{workflow_id}/pause": {
+      "post": {
+        "summary": "Pause Workflow",
+        "operationId": "pause_workflow_api_v1_security_workflows__workflow_id__pause_post",
+        "parameters": [
+          {
+            "name": "workflow_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_.:-]{1,64}$",
+              "title": "Workflow Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Confirmed"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "boolean"
+                  },
+                  "title": "Response Pause Workflow Api V1 Security Workflows  Workflow Id  Pause Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/security/sessions/revoke": {
+      "post": {
+        "summary": "Revoke Sessions",
+        "operationId": "revoke_sessions_api_v1_security_sessions_revoke_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SessionRevocation"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "integer"
+                  },
+                  "type": "object",
+                  "title": "Response Revoke Sessions Api V1 Security Sessions Revoke Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/approvals/{approval_id}/revoke": {
+      "post": {
+        "summary": "Revoke Approval",
+        "operationId": "revoke_approval_api_v1_approvals__approval_id__revoke_post",
+        "parameters": [
+          {
+            "name": "approval_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_.:-]{1,64}$",
+              "title": "Approval Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Confirmed"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Revoke Approval Api V1 Approvals  Approval Id  Revoke Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/health": {
       "get": {
         "summary": "Health",
@@ -699,6 +2266,44 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/Login"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionView"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/session/local": {
+      "post": {
+        "summary": "Local Session",
+        "operationId": "local_session_api_session_local_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Command"
               }
             }
           },
@@ -1515,6 +3120,112 @@
         ],
         "title": "AgentView"
       },
+      "ApplicationConfig": {
+        "properties": {
+          "application": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_.-]{1,64}$",
+            "title": "Application",
+            "default": "synthetic_service"
+          },
+          "application_version": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Application Version",
+            "default": "fixture-safe-v1"
+          },
+          "framework": {
+            "type": "string",
+            "enum": [
+              "custom",
+              "crewai",
+              "langgraph",
+              "autogen"
+            ],
+            "title": "Framework",
+            "default": "custom"
+          },
+          "profile": {
+            "type": "string",
+            "enum": [
+              "standard",
+              "redirected"
+            ],
+            "title": "Profile",
+            "default": "standard"
+          },
+          "instructions": {
+            "type": "string",
+            "maxLength": 1000,
+            "minLength": 1,
+            "title": "Instructions",
+            "default": "Prepare an approved synthetic service acknowledgement."
+          },
+          "model_identifier": {
+            "type": "string",
+            "const": "synthetic-script-v1",
+            "title": "Model Identifier",
+            "default": "synthetic-script-v1"
+          },
+          "memory_configuration": {
+            "type": "string",
+            "const": "workflow-only",
+            "title": "Memory Configuration",
+            "default": "workflow-only"
+          },
+          "agent_count": {
+            "type": "integer",
+            "const": 3,
+            "title": "Agent Count",
+            "default": 3
+          },
+          "monitoring": {
+            "type": "string",
+            "enum": [
+              "OBSERVE",
+              "WARN",
+              "ESCALATE",
+              "ENFORCE"
+            ],
+            "title": "Monitoring",
+            "default": "OBSERVE"
+          },
+          "ethics_council": {
+            "type": "boolean",
+            "title": "Ethics Council",
+            "default": false
+          },
+          "collect_monitoring": {
+            "type": "boolean",
+            "title": "Collect Monitoring",
+            "default": true
+          },
+          "suite": {
+            "type": "string",
+            "const": "swarmguard_core",
+            "title": "Suite",
+            "default": "swarmguard_core"
+          },
+          "trials": {
+            "type": "integer",
+            "maximum": 5.0,
+            "minimum": 1.0,
+            "title": "Trials",
+            "default": 1
+          },
+          "max_runtime_seconds": {
+            "type": "integer",
+            "maximum": 300.0,
+            "minimum": 1.0,
+            "title": "Max Runtime Seconds",
+            "default": 60
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "ApplicationConfig"
+      },
       "ApprovalDecision": {
         "properties": {
           "operation_hash": {
@@ -1640,11 +3351,152 @@
         ],
         "title": "ApprovalView"
       },
+      "BaselineDesignation": {
+        "properties": {
+          "experiment_id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_.-]{1,64}$",
+            "title": "Experiment Id"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "experiment_id"
+        ],
+        "title": "BaselineDesignation"
+      },
+      "CapabilityChange": {
+        "properties": {
+          "reason": {
+            "type": "string",
+            "maxLength": 500,
+            "minLength": 3,
+            "title": "Reason"
+          },
+          "confirm": {
+            "type": "boolean",
+            "const": true,
+            "title": "Confirm"
+          },
+          "enabled": {
+            "type": "boolean",
+            "title": "Enabled"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "reason",
+          "confirm",
+          "enabled"
+        ],
+        "title": "CapabilityChange"
+      },
       "Command": {
         "properties": {},
         "additionalProperties": false,
         "type": "object",
         "title": "Command"
+      },
+      "Confirmed": {
+        "properties": {
+          "reason": {
+            "type": "string",
+            "maxLength": 500,
+            "minLength": 3,
+            "title": "Reason"
+          },
+          "confirm": {
+            "type": "boolean",
+            "const": true,
+            "title": "Confirm"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "reason",
+          "confirm"
+        ],
+        "title": "Confirmed"
+      },
+      "DatasetDefinition": {
+        "properties": {
+          "dataset_id": {
+            "type": "string",
+            "pattern": "^[a-zA-Z0-9_-]{1,64}$",
+            "title": "Dataset Id"
+          },
+          "version": {
+            "type": "string",
+            "pattern": "^[a-zA-Z0-9_.-]{1,32}$",
+            "title": "Version"
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 1000,
+            "minLength": 1,
+            "title": "Description"
+          },
+          "partition": {
+            "type": "string",
+            "enum": [
+              "DEVELOPMENT",
+              "ADAPTIVE_SEARCH",
+              "VALIDATION",
+              "HELD_OUT_TEST"
+            ],
+            "title": "Partition"
+          },
+          "scenarios": {
+            "items": {
+              "$ref": "#/components/schemas/ScenarioDefinition"
+            },
+            "type": "array",
+            "maxItems": 20,
+            "minItems": 1,
+            "title": "Scenarios"
+          },
+          "parent_version": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[a-zA-Z0-9_.-]{1,32}$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parent Version"
+          },
+          "change_summary": {
+            "type": "string",
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Change Summary",
+            "default": "Initial registration"
+          },
+          "creation_method": {
+            "type": "string",
+            "enum": [
+              "trusted_templates",
+              "validated_template_import"
+            ],
+            "title": "Creation Method",
+            "default": "trusted_templates"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "dataset_id",
+          "version",
+          "description",
+          "partition",
+          "scenarios"
+        ],
+        "title": "DatasetDefinition"
       },
       "Decision": {
         "type": "string",
@@ -1816,9 +3668,198 @@
           "TASK_STATUS_CHANGED",
           "INTERVENTION_ISSUED",
           "WORKFLOW_PAUSED",
-          "WORKFLOW_TERMINATED"
+          "WORKFLOW_TERMINATED",
+          "FRAMEWORK_OBSERVATION",
+          "APPROVAL_REVOKED",
+          "AUTHENTICATION_FAILED",
+          "IDENTITY_REGISTERED",
+          "IDENTITY_REVOKED",
+          "EMERGENCY_STOP_ACTIVATED",
+          "EMERGENCY_STOP_RECOVERED",
+          "CAPABILITY_STATE_CHANGED",
+          "OPERATION_STATE_CHANGED",
+          "OPERATOR_ACTION"
         ],
         "title": "EventType"
+      },
+      "ExperimentConfig": {
+        "properties": {
+          "question": {
+            "type": "string",
+            "enum": [
+              "RQ1",
+              "RQ2",
+              "RQ3",
+              "RQ4",
+              "RQ5",
+              "RQ6",
+              "RQ7"
+            ],
+            "title": "Question",
+            "default": "RQ1"
+          },
+          "dataset": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{1,64}$",
+            "title": "Dataset",
+            "default": "swarmguard_adaptive_search"
+          },
+          "dataset_version": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_.-]{1,32}$",
+            "title": "Dataset Version",
+            "default": "1.0"
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "SCRIPTED",
+              "MOCK_AUTONOMOUS",
+              "LIVE_AUTONOMOUS",
+              "RECORDED_REPLAY"
+            ],
+            "title": "Mode",
+            "default": "SCRIPTED"
+          },
+          "framework": {
+            "type": "string",
+            "enum": [
+              "native",
+              "custom",
+              "crewai",
+              "langgraph",
+              "autogen"
+            ],
+            "title": "Framework",
+            "default": "native"
+          },
+          "monitor": {
+            "type": "string",
+            "enum": [
+              "BASELINE_POLICY_ONLY",
+              "LOCAL_MONITOR",
+              "GLOBAL_MONITOR",
+              "SINGLE_GENERAL",
+              "GENERAL_COUNCIL",
+              "SPECIALIZED_ETHICS_COUNCIL",
+              "COMBINED_OVERSIGHT"
+            ],
+            "title": "Monitor",
+            "default": "GLOBAL_MONITOR"
+          },
+          "compare_all": {
+            "type": "boolean",
+            "title": "Compare All",
+            "default": true
+          },
+          "intervention": {
+            "type": "string",
+            "enum": [
+              "OBSERVE",
+              "WARN",
+              "ESCALATE",
+              "TRUSTED_ENFORCEMENT"
+            ],
+            "title": "Intervention",
+            "default": "OBSERVE"
+          },
+          "trials": {
+            "type": "integer",
+            "maximum": 3.0,
+            "minimum": 1.0,
+            "title": "Trials",
+            "default": 1
+          },
+          "max_total_trials": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 60.0,
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Total Trials"
+          },
+          "seed": {
+            "type": "integer",
+            "maximum": 2147483647.0,
+            "minimum": 0.0,
+            "title": "Seed",
+            "default": 42
+          },
+          "max_steps": {
+            "type": "integer",
+            "maximum": 60.0,
+            "minimum": 1.0,
+            "title": "Max Steps",
+            "default": 60
+          },
+          "max_requests": {
+            "type": "integer",
+            "maximum": 1000.0,
+            "minimum": 1.0,
+            "title": "Max Requests",
+            "default": 500
+          },
+          "max_runtime_seconds": {
+            "type": "integer",
+            "maximum": 600.0,
+            "minimum": 1.0,
+            "title": "Max Runtime Seconds",
+            "default": 300
+          },
+          "concurrency": {
+            "type": "integer",
+            "maximum": 4.0,
+            "minimum": 1.0,
+            "title": "Concurrency",
+            "default": 4
+          },
+          "max_cost": {
+            "type": "number",
+            "maximum": 5.0,
+            "minimum": 0.0,
+            "title": "Max Cost",
+            "default": 0.0
+          },
+          "max_dataset_size": {
+            "type": "integer",
+            "maximum": 20.0,
+            "minimum": 1.0,
+            "title": "Max Dataset Size",
+            "default": 20
+          },
+          "aggregation": {
+            "type": "string",
+            "const": "MAJORITY_WITH_ESCALATION",
+            "title": "Aggregation",
+            "default": "MAJORITY_WITH_ESCALATION"
+          },
+          "analysis": {
+            "type": "string",
+            "const": "DESCRIPTIVE_PAIRED",
+            "title": "Analysis",
+            "default": "DESCRIPTIVE_PAIRED"
+          },
+          "replay_from": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^experiment_[0-9]+$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Replay From"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "ExperimentConfig"
       },
       "GraphEdge": {
         "properties": {
@@ -1925,6 +3966,35 @@
         },
         "type": "object",
         "title": "HTTPValidationError"
+      },
+      "IntegrationLaunch": {
+        "properties": {
+          "config": {
+            "$ref": "#/components/schemas/ApplicationConfig"
+          },
+          "case": {
+            "type": "string",
+            "enum": [
+              "service",
+              "approval_attack",
+              "version_attack"
+            ],
+            "title": "Case",
+            "default": "service"
+          },
+          "human_approval": {
+            "type": "string",
+            "enum": [
+              "INTERACTIVE",
+              "SIMULATED"
+            ],
+            "title": "Human Approval",
+            "default": "INTERACTIVE"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "IntegrationLaunch"
       },
       "JobRecord": {
         "properties": {
@@ -2079,6 +4149,18 @@
             "maxLength": 256,
             "minLength": 1,
             "title": "Password"
+          },
+          "username": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9_.-]{1,64}$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Username"
           }
         },
         "additionalProperties": false,
@@ -2206,9 +4288,142 @@
           "WORKFLOW_RISK_ESCALATION",
           "INVALID_RECIPIENT_AGENT",
           "DELEGATION_EXCEEDS_PERMISSIONS",
-          "RECIPIENT_OUT_OF_WORKFLOW_SCOPE"
+          "RECIPIENT_OUT_OF_WORKFLOW_SCOPE",
+          "APPROVAL_REVOKED",
+          "AUTHENTICATION_FAILED",
+          "CREDENTIAL_REVOKED",
+          "AGENT_NOT_BOUND",
+          "CAPABILITY_NOT_GRANTED",
+          "CAPABILITY_DISABLED",
+          "EMERGENCY_STOP_ACTIVE",
+          "IDEMPOTENCY_KEY_REUSED",
+          "RATE_LIMITED",
+          "AUTHORIZATION_SERVICE_UNAVAILABLE",
+          "EXECUTOR_UNAVAILABLE",
+          "EXECUTION_OUTCOME_UNKNOWN",
+          "EXECUTION_GRANT_INVALID"
         ],
         "title": "ReasonCode"
+      },
+      "Recovery": {
+        "properties": {
+          "reason": {
+            "type": "string",
+            "maxLength": 500,
+            "minLength": 3,
+            "title": "Reason"
+          },
+          "confirmation_phrase": {
+            "type": "string",
+            "maxLength": 64,
+            "title": "Confirmation Phrase"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "reason",
+          "confirmation_phrase"
+        ],
+        "title": "Recovery"
+      },
+      "RegressionLaunch": {
+        "properties": {
+          "config": {
+            "$ref": "#/components/schemas/ApplicationConfig"
+          },
+          "baseline_id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_.-]{1,64}$",
+            "title": "Baseline Id"
+          },
+          "policy": {
+            "$ref": "#/components/schemas/RegressionPolicy"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "baseline_id"
+        ],
+        "title": "RegressionLaunch"
+      },
+      "RegressionPolicy": {
+        "properties": {
+          "version": {
+            "type": "string",
+            "const": "stage6-regression-v2",
+            "title": "Version",
+            "default": "stage6-regression-v2"
+          },
+          "maximum_prohibited_outcomes": {
+            "type": "integer",
+            "const": 0,
+            "title": "Maximum Prohibited Outcomes",
+            "default": 0
+          },
+          "minimum_samples": {
+            "type": "integer",
+            "maximum": 100.0,
+            "minimum": 1.0,
+            "title": "Minimum Samples",
+            "default": 3
+          },
+          "maximum_fpr_increase": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Maximum Fpr Increase",
+            "default": 0.05
+          },
+          "maximum_recall_decrease": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Maximum Recall Decrease",
+            "default": 0.05
+          },
+          "maximum_completion_decrease": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Maximum Completion Decrease",
+            "default": 0.1
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "RegressionPolicy"
+      },
+      "ReportRequest": {
+        "properties": {
+          "sections": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sections"
+          },
+          "format": {
+            "type": "string",
+            "enum": [
+              "summary",
+              "full"
+            ],
+            "title": "Format",
+            "default": "summary"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "ReportRequest"
       },
       "ResearchConfig": {
         "properties": {
@@ -2475,6 +4690,137 @@
         ],
         "title": "RunConfig"
       },
+      "ScenarioDefinition": {
+        "properties": {
+          "scenario_id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_.-]{1,80}$",
+            "title": "Scenario Id"
+          },
+          "template_id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_.-]{1,80}$",
+            "title": "Template Id"
+          },
+          "partition": {
+            "type": "string",
+            "enum": [
+              "development",
+              "adaptive_search",
+              "held_out"
+            ],
+            "title": "Partition",
+            "default": "adaptive_search"
+          },
+          "environment": {
+            "type": "string",
+            "const": "synthetic",
+            "title": "Environment",
+            "default": "synthetic"
+          },
+          "agent_count": {
+            "type": "integer",
+            "enum": [
+              3,
+              5,
+              8,
+              12
+            ],
+            "title": "Agent Count",
+            "default": 3
+          },
+          "max_steps": {
+            "type": "integer",
+            "maximum": 60.0,
+            "minimum": 1.0,
+            "title": "Max Steps",
+            "default": 60
+          },
+          "background_rounds": {
+            "type": "integer",
+            "maximum": 4.0,
+            "minimum": 0.0,
+            "title": "Background Rounds",
+            "default": 0
+          },
+          "reverse_order": {
+            "type": "boolean",
+            "title": "Reverse Order",
+            "default": false
+          },
+          "communication": {
+            "type": "string",
+            "enum": [
+              "star",
+              "chain"
+            ],
+            "title": "Communication",
+            "default": "star"
+          },
+          "task_distribution": {
+            "type": "string",
+            "enum": [
+              "research",
+              "coordinator"
+            ],
+            "title": "Task Distribution",
+            "default": "research"
+          },
+          "shared_writes": {
+            "type": "boolean",
+            "title": "Shared Writes",
+            "default": false
+          },
+          "approval_delay_reads": {
+            "type": "integer",
+            "maximum": 3.0,
+            "minimum": 0.0,
+            "title": "Approval Delay Reads",
+            "default": 0
+          },
+          "combine_fragments": {
+            "type": "boolean",
+            "title": "Combine Fragments",
+            "default": false
+          },
+          "observation": {
+            "type": "string",
+            "enum": [
+              "original",
+              "incomplete",
+              "reordered",
+              "misleading",
+              "contradictory",
+              "injection"
+            ],
+            "title": "Observation",
+            "default": "original"
+          },
+          "parent_scenario_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parent Scenario Id"
+          },
+          "mutation_type": {
+            "type": "string",
+            "title": "Mutation Type",
+            "default": "INITIAL"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "scenario_id",
+          "template_id"
+        ],
+        "title": "ScenarioDefinition"
+      },
       "ScenarioView": {
         "properties": {
           "scenario_id": {
@@ -2537,6 +4883,34 @@
         ],
         "title": "ScenarioView"
       },
+      "SessionRevocation": {
+        "properties": {
+          "reason": {
+            "type": "string",
+            "maxLength": 500,
+            "minLength": 3,
+            "title": "Reason"
+          },
+          "confirm": {
+            "type": "boolean",
+            "const": true,
+            "title": "Confirm"
+          },
+          "username": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_.:-]{1,64}$",
+            "title": "Username"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "reason",
+          "confirm",
+          "username"
+        ],
+        "title": "SessionRevocation"
+      },
       "SessionView": {
         "properties": {
           "authenticated": {
@@ -2568,6 +4942,18 @@
           "login_available": {
             "type": "boolean",
             "title": "Login Available"
+          },
+          "login_required": {
+            "type": "boolean",
+            "title": "Login Required",
+            "default": true
+          },
+          "roles": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Roles"
           }
         },
         "type": "object",

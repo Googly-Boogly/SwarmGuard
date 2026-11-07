@@ -2,7 +2,7 @@
 
 React/TypeScript local frontend for the Stage 4.5 FastAPI control service. Full instructions: [User guide](../docs/USER_GUIDE.md); architecture and trust boundaries: [Frontend architecture](../docs/FRONTEND_ARCHITECTURE.md).
 
-From the repository root, activate `.venv`, provision the local operator using `python setup_console_operator.py`, and start `python -m uvicorn console_main:app --host 127.0.0.1 --port 8000 --ws-max-size 16384 --limit-concurrency 32` (one worker). Then:
+From the repository root, activate `.venv` and start `python -m uvicorn console_main:app --host 127.0.0.1 --port 8000 --ws-max-size 16384 --limit-concurrency 32` (one worker). Then:
 
 ```bash
 cd frontend
@@ -10,7 +10,7 @@ npm ci
 npm run dev
 ```
 
-Open http://localhost:5173. `/api`, `/observe`, and `/ws` are proxied to loopback FastAPI. There is no browser API key configuration.
+Open http://localhost:5173. `/api`, `/observe`, and `/ws` are proxied to loopback FastAPI. The local console opens directly without login or account setup. It automatically creates a server-side browser session for CSRF protection. There is no browser API key configuration.
 
 ```bash
 npm run lint       # TypeScript static checks

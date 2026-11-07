@@ -1,7 +1,7 @@
 """Authenticated final laboratory, sharing the console execution semaphore."""
 from __future__ import annotations
 import asyncio
-from typing import Any
+from typing import Any, Literal
 from fastapi import FastAPI, HTTPException, Request, Response
 from swarmguard.console.auth import OperatorAuth
 from swarmguard.datasets.registry import DatasetDefinition
@@ -16,6 +16,7 @@ from swarmguard.storage.repositories import PlatformRepository
 
 class ReportRequest(StrictModel):
     sections: list[str] | None = None
+    format: Literal['summary', 'full'] = 'summary'
 
 class LaboratoryJobs:
     def __init__(self, lab: Laboratory, worker: asyncio.Semaphore) -> None:
@@ -83,7 +84,7 @@ def register_laboratory_routes(app: FastAPI, auth: OperatorAuth) -> None:
     async def report(eid: str, body: ReportRequest, request: Request) -> dict[str, Any]:
         auth.require(request, 'RESEARCHER')
         try:
-            return generate_report(read(eid), body.sections)
+            return generate_report(read(eid), body.sections, concise=body.format == 'summary' and body.sections is None)
         except ValueError as exc:
             raise HTTPException(422, str(exc)) from None
     @app.get('/api/research/lab/experiments/{eid}/bundle')

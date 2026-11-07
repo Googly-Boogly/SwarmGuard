@@ -2,7 +2,6 @@
 from __future__ import annotations
 import asyncio
 import copy
-import random
 from typing import Any
 from swarmguard.clock import Clock, SystemClock
 from swarmguard.datasets.registry import DatasetRegistry
@@ -40,8 +39,8 @@ class Laboratory:
             if source["status"] != "COMPLETED" or not validate_result(source)["valid"]:
                 raise ValueError("replay source must be completed and valid")
             keys = ("dataset", "dataset_version", "monitor", "compare_all", "trials", "seed", "max_steps",
-                    "aggregation", "analysis", "framework", "intervention")
-            if any(source["config"][k] != config.model_dump()[k] for k in keys):
+                    "aggregation", "analysis", "framework", "intervention", "max_total_trials")
+            if any(source["config"].get(k) != config.model_dump()[k] for k in keys):
                 raise ValueError("recorded replay cannot change the source configuration")
         eid = self.db.next_id("experiment")
         from swarmguard.agents.prompts import prompt_hash
@@ -54,7 +53,7 @@ class Laboratory:
             "aggregation": config.aggregation, "sampling": {"seed": config.seed, "temperature": None, "max_output_tokens": 800},
             "created_at": self.clock.now().isoformat(), "replay_from": config.replay_from,
             "is_research_result": False, "human_oversight": "Trusted simulated approval harness; no real external operations",
-            "limits": config.model_dump(include={"max_steps", "max_requests", "max_runtime_seconds", "concurrency", "max_cost", "max_dataset_size"})}
+            "limits": config.model_dump(include={"max_steps", "max_requests", "max_runtime_seconds", "concurrency", "max_cost", "max_dataset_size", "max_total_trials"})}
         record = {"experiment_id": eid, "status": "CREATED", "config": config.model_dump(),
             "dataset": dataset, "manifest": manifest, "created_by": actor, "rows": [], "metrics": {},
             "started_at": None, "completed_at": None, "error": None, "usage": {}, "results_hash": None,
@@ -97,9 +96,8 @@ class Laboratory:
                                    max_concurrency=config.concurrency)
         runner = config.runner_config(record["dataset"]["definition"]["partition"])
         definitions = [ScenarioDefinition.model_validate(s) for s in record["dataset"]["definition"]["scenarios"]]
-        planned = len(definitions)*config.trials
-        schedule = [(trial, d) for trial in range(config.trials) for d in definitions]
-        random.Random(config.seed).shuffle(schedule)
+        schedule = config.trial_schedule(definitions)
+        planned = len(schedule)
         record.update(status="RUNNING", started_at=self.clock.now().isoformat())
         in_flight: dict[str, Any] | None = None
 

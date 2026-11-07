@@ -13,13 +13,12 @@ SwarmGuard is an open-source AI-safety research framework for monitoring and con
 
 ## Stage 4.5 — Research Console
 
-A working local React/TypeScript console now connects the existing services through a separate authenticated control API. It launches bounded mock autonomous workflows and experiments, waits for trusted human approval, streams persisted events, renders actual dependency graphs, exposes gateway decisions and council disagreement, compares trajectories, and charts/export measured synthetic results.
+A working local React/TypeScript console now connects the existing services through a separate session-protected control API. It launches bounded mock autonomous workflows and experiments, waits for trusted human approval, streams persisted events, renders actual dependency graphs, exposes gateway decisions and council disagreement, compares trajectories, and charts/export measured synthetic results.
 
 The original `main:app` stays read-only. Start the console separately:
 
 ```bash
 source .venv/bin/activate
-python setup_console_operator.py
 python -m uvicorn console_main:app --host 127.0.0.1 --port 8000 --ws-max-size 16384 --limit-concurrency 32
 # Second terminal:
 cd frontend
@@ -265,7 +264,7 @@ uvicorn main:app --host 127.0.0.1 --port 8000     # http://127.0.0.1:8000/docs (
 
 The ethics endpoints only read recorded results. No GET request can trigger an LLM call.
 
-The API opens SQLite read-only and accepts no SQL. It has no endpoints for identities, approvals, policy or tool execution. Use `SWARMGUARD_DB_PATH` to point it at another database. Docker: `docker compose up --build` serves the read-only API on http://127.0.0.1:7676 and the research console on http://127.0.0.1:8080 (provision a login with `docker compose run --rm console python setup_console_operator.py`, then `docker compose restart console`).
+The API opens SQLite read-only and accepts no SQL. It has no endpoints for identities, approvals, policy or tool execution. Use `SWARMGUARD_DB_PATH` to point it at another database. Docker: `docker compose up --build` serves the read-only API on http://127.0.0.1:7676 and the research console on http://127.0.0.1:8080 (opens directly without login or account setup).
 
 ## Understanding authorization decisions
 
@@ -322,7 +321,7 @@ gateway, as-of observations and councils. It records controlled mutations, struc
 monitor predictions, actual authorization/execution outcomes, context robustness pairs, failures,
 3/5/8/12-participant scaling, comparative metrics and reproducibility manifests. Four research
 pages extend the existing console: **Adaptive Adversarial Research**, **Safety Benchmarks**,
-**Failure Analysis**, and **Scaling Experiments**. Use the existing local operator login to launch
+**Failure Analysis**, and **Scaling Experiments**. The local console prepares its session automatically to launch
 mock research, cancel runs, inspect exact evidence/graphs and export records.
 
 ```bash
@@ -332,7 +331,6 @@ python run_adaptive_evaluation.py --provider mock
 python run_benchmark.py --provider mock
 python run_benchmark.py --provider mock --suite held_out
 # Console: provision an operator once, then use the existing entry point.
-python setup_console_operator.py
 python -m uvicorn console_main:app --host 127.0.0.1 --port 8000
 # Separate terminal:
 cd frontend
@@ -413,6 +411,6 @@ python run_research.py --provider mock
 python verify_final_release.py
 ```
 
-The final verification command returns exit 2 when release evidence is incomplete. The native laboratory adds immutable dataset versions, bounded experiments, mock autonomous policies, recorded replay, statistical accounting, reports and checksummed bundles. Console routes start at `/research/laboratory`. Start the backend with `python -m uvicorn console_main:app --host 127.0.0.1 --port 8000` and frontend with `cd frontend && npm ci && npm run dev`; provision an operator first using setup_console_operator.py.
+The final verification command returns exit 2 when release evidence is incomplete. The native laboratory adds immutable dataset versions, bounded experiments, mock autonomous policies, recorded replay, statistical accounting, reports and checksummed bundles. Console routes start at `/research/laboratory`. Start the backend with `python -m uvicorn console_main:app --host 127.0.0.1 --port 8000` and frontend with `cd frontend && npm ci && npm run dev`; the local console opens without login or account setup.
 
 See [final architecture](docs/FINAL_ARCHITECTURE.md), [research guide](docs/RESEARCHER_GUIDE.md), [limitations](docs/LIMITATIONS.md), and [release report](docs/FINAL_RELEASE_REPORT.md). No license has been selected; public open-source release remains blocked pending the owner decision.

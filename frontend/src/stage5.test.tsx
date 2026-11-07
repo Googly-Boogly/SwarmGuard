@@ -16,14 +16,14 @@ function mockApi(data:Record<string,unknown>) {
 afterEach(() => vi.unstubAllGlobals())
 describe('Stage 5 research controls',() => {
  it('requires authentication before research reads or launches',async() => {
-  const fetch=mockApi({'/api/session':{authenticated:false}})
+  const fetch=mockApi({'/api/session':{authenticated:false,login_available:true}})
   mount(<Stage5ResearchPage kind="adaptive"/>)
   expect(await screen.findByText('Researcher login required')).toBeInTheDocument()
   expect(screen.getByRole('button',{name:'START RESEARCH RUN'})).toBeDisabled()
   expect(fetch.mock.calls.every(([path]) => !path.startsWith('/api/research/'))).toBe(true)
  })
  it('submits bounded mock data without privileged command fields',async() => {
-  const fetch=mockApi({'/api/session':{authenticated:true},'/api/research/adversarial':[],
+  const fetch=mockApi({'/api/session':{authenticated:true,login_available:true},'/api/research/adversarial':[],
     '/api/research/adversarial/runs':{run_id:'research_001'}})
   mount(<Stage5ResearchPage kind="adaptive"/>)
   await waitFor(() => expect(screen.getByRole('button',{name:'START RESEARCH RUN'})).toBeEnabled())
@@ -39,7 +39,7 @@ describe('Stage 5 research controls',() => {
   const record={run_id:'research_001',status:'COMPLETED',iteration:1,generated:1,validated:1,executed:1,rejected:0,failed:0,
    monitoring_failures:0,gateway_blocks:0,prohibited_outcomes:0,usage:{},manifest:{config:{partition:'adaptive_search'}},
    metrics:{detection:{GLOBAL_MONITOR:{n:0,precision:null,recall:null,f1:null,false_positive_rate:null}},comparison_count:0,note:'Synthetic'}}
-  mockApi({'/api/session':{authenticated:true},'/api/research/adversarial':[record],'/api/research/runs/research_001':record,
+  mockApi({'/api/session':{authenticated:true,login_available:true},'/api/research/adversarial':[record],'/api/research/runs/research_001':record,
    '/api/research/runs/research_001/candidates':[]})
   mount(<Stage5ResearchPage kind="adaptive"/>)
   expect((await screen.findAllByText('undefined')).length).toBeGreaterThanOrEqual(4)
@@ -47,7 +47,7 @@ describe('Stage 5 research controls',() => {
  })
  it('renders untrusted failure text as inert content',async() => {
   const content='<img src=x onerror="window.stage5Injected=true">'
-  mockApi({'/api/session':{authenticated:true},'/api/research/failures':[{failure_id:'f',run_id:'r',workflow_id:'w',monitor:content,
+  mockApi({'/api/session':{authenticated:true,login_available:true},'/api/research/failures':[{failure_id:'f',run_id:'r',workflow_id:'w',monitor:content,
     expected_unsafe:true,prediction:false,category:'UNKNOWN_FAILURE'}]})
   mount(<Stage5FailuresPage/>)
   expect(await screen.findByText(content)).toBeInTheDocument()

@@ -8,11 +8,10 @@ Python 3.11+ and Node.js 22.12+ are required. Use the repository root:
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
-python setup_console_operator.py
 python -m uvicorn console_main:app --host 127.0.0.1 --port 8000 --ws-max-size 16384 --limit-concurrency 32
 ```
 
-Choose your own operator password. The setup script saves a salted hash; there is no default password. In a second terminal:
+The local console opens without an account or password. It prepares a browser session automatically. In a second terminal:
 
 ```bash
 cd frontend
@@ -28,13 +27,13 @@ The default session cookie is Secure and HttpOnly. Chromium accepts it at the lo
 
 ## Navigate and observe
 
-Overview shows persisted counts, agent status, workflows, and recent gateway decisions. Sidebar navigation groups agent operations, safety oversight, research, and system tools. The top bar shows backend health, MOCK MODE, active workflow/job, theme, and operator login. Read-only inspection does not require operator login. Mutations do.
+Overview shows persisted counts, agent status, workflows, and recent gateway decisions. Sidebar navigation groups agent operations, safety oversight, research, and system tools. The top bar shows backend health, MOCK MODE, active workflow/job, and theme. The local console has no login or sign-out controls; browser mutations retain server-side sessions, exact Origin checks and CSRF protection.
 
 Agent Control shows the fixed trusted registry and capabilities. Select an agent for history and workflow links. Control the owning workflow to pause/resume/stop execution; individual agent control and dynamic identity creation are unavailable.
 
 ## Launch a workflow
 
-1. Sign in using **Operator login**.
+1. Open the local console; its browser session is prepared automatically.
 2. Open **Scenario Library** and select **Configure workflow**, or **Active Workflows → Start workflow**.
 3. Keep **Mock autonomous** for interactive operation. Choose a scenario, monitor configuration, intervention, aggregation, and execution limits.
 4. Choose **Review configuration**, inspect the limits, then **Start workflow**.
@@ -98,4 +97,4 @@ To verify the optimized production assets after building, run `SWARMGUARD_PREVIE
 
 ## Final laboratory
 
-Open `/research/laboratory`, authenticate with a RESEARCHER account, select question and validated dataset, and run a bounded synthetic experiment. Choose swarmguard_autonomous for MOCK_AUTONOMOUS. Inspect recorded statistics and trajectories, generate a draft report, and download the checksummed bundle. Unsupported configurations return backend validation errors.
+Open `/research/laboratory`, select question and validated dataset, and run a bounded synthetic experiment. Choose swarmguard_autonomous for MOCK_AUTONOMOUS. Inspect recorded statistics and trajectories, generate a draft report, and download the checksummed bundle. Unsupported configurations return backend validation errors.

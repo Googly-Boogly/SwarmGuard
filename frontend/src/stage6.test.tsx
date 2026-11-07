@@ -26,13 +26,13 @@ const catalog = { available: [
 
 describe('Stage 6 integrations', () => {
  it('requires a researcher session before reading integration records', async () => {
-  const fetch = mockApi({ '/api/session': { authenticated: false } })
+  const fetch = mockApi({ '/api/session': { authenticated: false, login_available: true } })
   mount(<IntegrationsPage/>)
   expect(await screen.findByText('Researcher login required')).toBeInTheDocument()
   expect(fetch.mock.calls.every(([path]) => !path.startsWith('/api/integrations'))).toBe(true)
  })
  it('shows actual versions, unavailable capabilities, disabled unsupported frameworks and recent errors', async () => {
-  mockApi({ '/api/session': { authenticated: true }, '/api/integrations': catalog })
+  mockApi({ '/api/session': { authenticated: true, login_available: true }, '/api/integrations': catalog })
   mount(<IntegrationsPage/>)
   expect(await screen.findByText('Installed version: 3.13.18')).toBeInTheDocument()
   expect(screen.getByText('Installed version: not installed')).toBeInTheDocument()
@@ -41,7 +41,7 @@ describe('Stage 6 integrations', () => {
   expect(screen.getByText('RuntimeError: dependency failed')).toBeInTheDocument()
  })
  it('launches a run without identities, tools, approvals or policies in the body', async () => {
-  const fetch = mockApi({ '/api/session': { authenticated: true }, '/api/integrations': catalog, '/api/integrations/runs': { job_id: 'platform_job_001' } })
+  const fetch = mockApi({ '/api/session': { authenticated: true, login_available: true }, '/api/integrations': catalog, '/api/integrations/runs': { job_id: 'platform_job_001' } })
   mount(<IntegrationsPage/>)
   await screen.findByText('Installed version: 3.13.18')
   fireEvent.click(screen.getByRole('button', { name: 'Run framework workflow' }))
@@ -51,7 +51,7 @@ describe('Stage 6 integrations', () => {
  })
  it('shows event coverage with unobserved kinds and dropped unattributed events', async () => {
   const record = { ...catalog.connections[0], status: 'DISCONNECTED', errors: [], event_coverage: { TOOL_CALL_PROPOSED: 4, AUTHORIZATION_DECISION: 4 }, unattributed_native_events: 2, checkpoint_refs: ['ckpt_a'] }
-  mockApi({ '/api/session': { authenticated: true }, '/api/integrations/integration_001': record, '/api/integrations/integration_001/events': [] })
+  mockApi({ '/api/session': { authenticated: true, login_available: true }, '/api/integrations/integration_001': record, '/api/integrations/integration_001/events': [] })
   mount(<IntegrationDetailPage/>, '/integrations/integration_001', '/integrations/:integrationId')
   expect(await screen.findByText('Event coverage')).toBeInTheDocument()
   expect(screen.getAllByText('not observed').length).toBe(9)
@@ -62,7 +62,7 @@ describe('Stage 6 integrations', () => {
 
 describe('Stage 6 runtime monitoring', () => {
  it('renders normalized events with their evidence source', async () => {
-  mockApi({ '/api/session': { authenticated: true }, '/api/platform/jobs': [], '/api/runtime/events': [
+  mockApi({ '/api/session': { authenticated: true, login_available: true }, '/api/platform/jobs': [], '/api/runtime/events': [
    { event_id: 'canonical_001', seq: 1, integration_id: 'integration_001', framework: 'crewai', workflow_id: 'wf_1', agent_id: 'operations_agent', event_type: 'TOOL_CALL_PROPOSED', source: 'FRAMEWORK_REPORTED', action_id: null, tool_call_id: 'call_001', timestamp: '2026-11-06T16:00:00Z', metadata: {} },
    { event_id: 'canonical_002', seq: 2, integration_id: 'integration_001', framework: 'crewai', workflow_id: 'wf_1', agent_id: 'operations_agent', event_type: 'AUTHORIZATION_DECISION', source: 'GATEWAY_VERIFIED', action_id: 'action_001', tool_call_id: 'call_001', timestamp: '2026-11-06T16:00:01Z', metadata: {} }] })
   mount(<RuntimeMonitoringPage/>)
@@ -71,7 +71,7 @@ describe('Stage 6 runtime monitoring', () => {
   expect(screen.getByText('unavailable')).toBeInTheDocument()   // missing action reference is shown as missing
  })
  it('shows an error state when the backend refuses the request', async () => {
-  mockApi({ '/api/session': { authenticated: true }, '/api/platform/jobs': [] }, { '/api/runtime/events': 401 })
+  mockApi({ '/api/session': { authenticated: true, login_available: true }, '/api/platform/jobs': [] }, { '/api/runtime/events': 401 })
   mount(<RuntimeMonitoringPage/>)
   expect(await screen.findByRole('alert')).toHaveTextContent('researcher login required')
  })
@@ -82,7 +82,7 @@ const report = { run_id: 'regression_001', baseline_id: 'baseline_001', candidat
 
 describe('Stage 6 safety regression', () => {
  it('configures a candidate evaluation with bounded fields only', async () => {
-  const fetch = mockApi({ '/api/session': { authenticated: true }, '/api/integrations': catalog, '/api/evaluation/frameworks': [], '/api/regression/baselines': [], '/api/regression/runs': [], '/api/evaluation/frameworks/runs': { job_id: 'platform_job_002' } })
+  const fetch = mockApi({ '/api/session': { authenticated: true, login_available: true }, '/api/integrations': catalog, '/api/evaluation/frameworks': [], '/api/regression/baselines': [], '/api/regression/runs': [], '/api/evaluation/frameworks/runs': { job_id: 'platform_job_002' } })
   mount(<SafetyRegressionPage/>)
   expect(await screen.findByText('No evaluations yet')).toBeInTheDocument()
   expect(screen.getByRole('button', { name: 'Start safety regression' })).toBeDisabled()   // no approved baseline selected
@@ -93,7 +93,7 @@ describe('Stage 6 safety regression', () => {
   expect(body).toEqual({ framework: 'custom', application: 'synthetic_service', application_version: 'fixture-candidate-v2', profile: 'redirected' })
  })
  it('renders the CI decision, sample counts, new failures and undefined metrics without zero-filling', async () => {
-  mockApi({ '/api/session': { authenticated: true }, '/api/regression/runs/regression_001': report, '/api/evaluation/runtime-overhead': [] })
+  mockApi({ '/api/session': { authenticated: true, login_available: true }, '/api/regression/runs/regression_001': report, '/api/evaluation/runtime-overhead': [] })
   mount(<RegressionResultsPage/>, '/regression/regression_001', '/regression/:runId')
   expect(await screen.findByText('CONFIRMED THRESHOLD VIOLATION')).toHaveClass('badge', 'danger')
   expect(screen.getByText(/Exit code:/)).toHaveTextContent('Exit code: 1 · Gate passed: false')
@@ -103,7 +103,7 @@ describe('Stage 6 safety regression', () => {
   expect(screen.getByText('No overhead experiment recorded in this database')).toBeInTheDocument()
  })
  it('renders measured runtime overhead with insufficient-sample percentiles', async () => {
-  mockApi({ '/api/session': { authenticated: true }, '/api/regression/runs/regression_001': report, '/api/evaluation/runtime-overhead': [
+  mockApi({ '/api/session': { authenticated: true, login_available: true }, '/api/regression/runs/regression_001': report, '/api/evaluation/runtime-overhead': [
    { framework: 'custom', is_synthetic: true, note: 'All conditions retain deterministic authorization.', rows: [{ configuration: 'DETERMINISTIC_GATEWAY', n: 3, median_workflow_ms: 20, median_action_ms: 1.5, p95_action_ms: null, action_samples: 30, throughput_per_second: 500, llm_tokens: null }] }] })
   mount(<RegressionResultsPage/>, '/regression/regression_001', '/regression/:runId')
   expect(await screen.findByText('DETERMINISTIC_GATEWAY')).toBeInTheDocument()

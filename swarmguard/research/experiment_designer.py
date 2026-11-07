@@ -1,9 +1,10 @@
 """Pre-registered, bounded configurations. Unsupported combinations fail before calls."""
 from __future__ import annotations
+import random
 from typing import Any, Literal
 from pydantic import Field, model_validator
 from swarmguard.datasets.registry import DatasetDefinition, DatasetRegistry, PARTITIONS
-from swarmguard.models.adversarial import StrictModel, ResearchConfig, MonitorName
+from swarmguard.models.adversarial import StrictModel, ResearchConfig, MonitorName, ScenarioDefinition
 
 
 class ExperimentConfig(StrictModel):
@@ -16,6 +17,7 @@ class ExperimentConfig(StrictModel):
     compare_all: bool = True
     intervention: Literal["OBSERVE", "WARN", "ESCALATE", "TRUSTED_ENFORCEMENT"] = "OBSERVE"
     trials: int = Field(default=1, ge=1, le=3)
+    max_total_trials: int | None = Field(default=None, ge=1, le=60)
     seed: int = Field(default=42, ge=0, le=2**31-1)
     max_steps: int = Field(default=60, ge=1, le=60)
     max_requests: int = Field(default=500, ge=1, le=1000)
@@ -46,6 +48,12 @@ class ExperimentConfig(StrictModel):
             compare_all=self.compare_all, seed=self.seed, trials=self.trials, max_steps=self.max_steps,
             max_requests=self.max_requests, max_concurrency=self.concurrency,
             max_runtime_seconds=self.max_runtime_seconds, max_cost_usd=self.max_cost)
+
+    def trial_schedule(self, definitions: list[ScenarioDefinition]) -> list[tuple[int, ScenarioDefinition]]:
+        """Select the bounded schedule before inference, without consulting labels."""
+        schedule = [(trial, definition) for trial in range(self.trials) for definition in definitions]
+        random.Random(self.seed).shuffle(schedule)
+        return schedule if self.max_total_trials is None else schedule[:self.max_total_trials]
 
 
 def validate_config(config: ExperimentConfig, datasets: DatasetRegistry) -> dict[str, Any]:
