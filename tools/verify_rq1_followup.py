@@ -1,4 +1,4 @@
-"""Read-only verification/export of the persisted follow-up; never runs a workflow or monitor.
+"""Read-only RQ1 historical verification/export; never runs a workflow or monitor.
 
 python tools/verify_rq1_followup.py --database <console.db> --export <new-snapshot.json>
 python tools/verify_rq1_followup.py --snapshot <snapshot.json>
@@ -23,6 +23,11 @@ def digest(value: Any) -> str:
 
 
 def verify(snapshot: dict[str,Any]) -> dict[str,Any]:
+    if not isinstance(snapshot, dict):
+        raise AssertionError('snapshot root must be a JSON object')
+    if snapshot.get('schema_version') is not None or snapshot.get('experiment', {}).get('experiment_id') == 'rq1_experiment_005':
+        from tools.rq1_005_snapshot import verify as verify_005
+        return verify_005(snapshot)
     e,r=snapshot['experiment'],snapshot['result']
     assert e['status']=='COMPLETED' and not e['integrity_problems'] and not e['failures']
     assert e['config']['llm_mode']=='none' and e['config']['trials']==1
@@ -95,10 +100,14 @@ def verify(snapshot: dict[str,Any]) -> dict[str,Any]:
 def main() -> None:
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--database');parser.add_argument('--snapshot');parser.add_argument('--export')
+    parser.add_argument('--experiment-id', choices=('rq1_experiment_005','rq1_experiment_006'), default='rq1_experiment_006')
     parser.add_argument('--baseline',default='research/rq1/experiment_006_freeze.json')
     args=parser.parse_args()
     if bool(args.database)==bool(args.snapshot):parser.error('choose --database or --snapshot')
     if args.snapshot:snapshot=json.loads(Path(args.snapshot).read_text())
+    elif args.experiment_id == 'rq1_experiment_005':
+        from tools.rq1_005_snapshot import export_database
+        snapshot = export_database(args.database)
     else:
         from swarmguard.storage.database import Database
         from swarmguard.storage.repositories import PlatformRepository
@@ -122,4 +131,9 @@ def main() -> None:
     else:print(json.dumps(report,indent=2,sort_keys=True))
 
 
-if __name__=='__main__':main()
+if __name__=='__main__':
+    try:
+        main()
+    except (AssertionError, KeyError, TypeError, ValueError, OSError) as exc:
+        print(json.dumps({'valid': False, 'overall_verification': 'FAIL', 'errors': getattr(exc, 'errors', [str(exc)])}, indent=2), file=sys.stderr)
+        raise SystemExit(1)

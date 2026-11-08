@@ -1,0 +1,13 @@
+{
+  "005_matches_prior_006_freeze": true,
+  "006_current_records_equal_existing_public_snapshot": true,
+  "after_record_set_sha256": "b544c0be8a74cdb437b10223cafcc8bf96a09ed56388d4cefcad690fb33d9b81",
+  "all_unchanged": true,
+  "before_record_set_sha256": "b544c0be8a74cdb437b10223cafcc8bf96a09ed56388d4cefcad690fb33d9b81",
+  "changed_records": [],
+  "experiment_005_records_checked": 26,
+  "experiment_006_records_checked": 62,
+  "note": "Exporter-side observation after the historical runs, not a new experiment or signed source attestation.",
+  "records_checked": 88,
+  "source_access": "read-only; SQLite consistent online backup; no migrations or record writes"
+}

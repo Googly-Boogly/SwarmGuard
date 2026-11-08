@@ -474,3 +474,43 @@ updated only the frontend. Deployed browser verification confirmed fresh/recomme
 60-case defaults, successful monitor-free validation, missing-budget rejection, and an
 unchanged experiment list. Existing 006 still contains 60 completed workflows; the user's
 newer cancelled run selected `held_out`. No paid call made.
+
+### Experiment 005 archival reproducibility export — November 8, 2026
+
+After the original run, exported `rq1_experiment_005` from a consistent SQLite online
+backup made with a read-only source connection. Only allowlisted scientific data was
+published in `research/rq1/experiment_005_snapshot.json` (schema
+`rq1-public-snapshot-1`), with public checksums, a recomputed verification report and
+source-record preservation report. Temporary full database copies remained outside Git;
+no migration, original-row update, experiment/monitor/ablation rerun or live API call occurred.
+
+All 26 original 005 records matched their earlier versioned hashes preserved in 006's
+freeze. All 88 selected 005/006 records were unchanged before/after export; the 62 current
+006 records also matched its existing public snapshot exactly. Original config, manifest,
+labels, deterministic checkpoint inputs/outputs and predictions, LLM scoring rows and
+recorded ablations were preserved. Removed approval signatures/whole approval rows,
+provider envelopes/call IDs, account-settings flags, duplicate raw LLM inputs and redundant
+views. Sanitized payloads have new hashes; original payload/input hashes remain provenance,
+not independently recomputable from omitted bytes. No original aggregate result hash existed,
+and 005's original code revision remains `unavailable`.
+
+Extended the existing offline verifier with an explicit 005 schema branch, leaving 006's
+verification path and historical files unchanged. Reconstructed 005 deterministic TP/FP/TN/FN:
+Local 5/3/9/7, Global 11/0/12/1; historical LLM Local 12/12/0/0 and Global 12/9/3/0.
+All 21 recorded Global-only ablation entries were consistent (resource history removed
+21 alerts; prior events removed six); no ablation intervention was repeated. Existing
+six Global-only detections, three Local false positives and `rq1_dal_u06` miss remain visible.
+
+Verification: 21 focused snapshot tests passed (005 plus existing 006); broader offline
+regression selection 590 passed / 12 skipped. RQ1 execution-test files were deliberately
+excluded to honor the no-rerun instruction. Required Stage 1–3 mock demonstrations PASS.
+Both documented snapshot commands and both checksum files passed in an isolated archive
+of tracked HEAD plus only proposed reproducibility files, with no `.env`, private database,
+site packages or credentials; explicit audit guards rejected database/network access.
+No new experimental findings or full workflow-replay claim. Status:
+`HISTORICAL_RESULTS_VERIFIABLE`. Artifacts are local until committed and pushed.
+
+Revision-mapping clarification for 006 (no historical record rewritten): all 13 files
+listed in its freeze match commit `fb8324adde507bfcab12a7dfd3b1efacc9689eff` byte-for-byte.
+Its original run revision stays `65628205db0275c96a254438a55d647bb40bf4ac-dirty`.
+This later mapping does not recover an unknown original commit for 005.
