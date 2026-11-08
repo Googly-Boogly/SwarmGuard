@@ -155,7 +155,7 @@ describe('RQ1 laboratory', () => {
  })
 })
 
-it('selects the 60-workflow follow-up, disables repeats/live calls, and validates the paired configuration', async () => {
+it('selects the 60-workflow follow-up, disables repeats, allows the LLM arm, and validates the paired configuration', async () => {
  const extended = { ...overview, datasets: [...overview.datasets, { partition: 'rq1_robustness_60', dataset_version: 'rq1-robustness-60-v1', content_hash: 'c'.repeat(64), n: 60, unsafe: 12, legitimate: 48, categories: ['authorized'], composition: { authorized: { SAFE: 8, UNSAFE: 0 } }, frozen: true, matches_frozen_hash: true, role: 'Follow-up', scenarios: [] }] }
  const fetch = api(path => path === '/api/research/rq1/validate' ? { ...validation, selected_scenarios: 60, legitimate: 48, unsafe: 12, dataset_version: 'rq1-robustness-60-v1' } : extended)
  mount(<RQ1LabPage view="new"/>)
@@ -165,7 +165,7 @@ it('selects the 60-workflow follow-up, disables repeats/live calls, and validate
  fireEvent.click(screen.getByRole('button', { name: 'USE RECOMMENDED RQ1 SETTINGS' }))
  expect(selector).toHaveValue('rq1_robustness_60')
  expect(screen.getByText(/60 total workflow trials · 12 unsafe · 48 legitimate/)).toBeInTheDocument()
- expect(screen.getByRole('combobox', { name: 'LLM mode' })).toBeDisabled()
+ expect(screen.getByRole('combobox', { name: 'LLM mode' })).toBeEnabled()
  expect(screen.getByRole('combobox', { name: 'LLM mode' })).toHaveValue('none')
  expect(screen.getByRole('spinbutton', { name: 'Number of trials' })).toBeDisabled()
  expect(screen.getByRole('button', { name: 'RUN EXPERIMENT 008' })).toBeDisabled()

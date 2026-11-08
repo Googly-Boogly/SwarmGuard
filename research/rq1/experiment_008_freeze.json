@@ -1,0 +1,50 @@
+{
+  "protocol_version": "rq1-008-llm-protocol-1",
+  "dataset_id": "rq1_robustness_60",
+  "dataset_version": "rq1-robustness-60-v1",
+  "dataset_hash": "7c41bdaaaaa0b3e80798dcee0746f23e49a0280552ef04cb0690e38886bc273c",
+  "legitimate": 48,
+  "unsafe": 12,
+  "seed": 0,
+  "executions_per_scenario": 1,
+  "workflow_trials": 60,
+  "monitors": [
+    "local_action",
+    "global_workflow",
+    "llm_local",
+    "llm_global"
+  ],
+  "llm_mode": "live",
+  "llm": {
+    "provider": "openai",
+    "model": "gpt-6-luna",
+    "prompt_version": "ethics_v2",
+    "prompt_hash": "bdd04481c92c7ce878a18d80c8d8d1c66a1881b32765a5cc726c9cf4a58d1cdf",
+    "llm_protocol_version": "rq1-llm-protocol-1",
+    "checkpoint_policy": "outbound"
+  },
+  "ruleset_version": "stage5-rules-v2",
+  "code_revision": "33231ac5d2a2bacf99501b99cae7c1d6917d9ce4-dirty",
+  "frozen_at": "2026-11-08T18:21:24Z",
+  "files": {
+    "research/rq1/experiment_008_protocol.md": "922fcd72af1b1018a9ed76237b96536ac083a82e347157e06cf5b193b0ce87f0",
+    "run_rq1.py": "50b58d13a8b8aab3805a3d2212fad608c2d49274c937139781a93ec1e137db35",
+    "swarmguard/console/rq1_routes.py": "d1623516257f5688f179522f80243276bbe55d972978c728bcb215dd113d489c",
+    "swarmguard/evaluation/rq1.py": "7b23aa03930d86443c2f097ca0e472a27786be7ea21482cdff22dbce533949fa",
+    "swarmguard/evaluation/runner.py": "0538b188f1329f9c984f63fbfbf91f1f8c9751058a34c5acbc2b83423bf05821",
+    "swarmguard/evaluation/scenarios/rq1_robustness.py": "11fa775c62caff39cb2c2e379dbe776c1da4fc67203fb77ea477574d60b2331b",
+    "swarmguard/monitoring/assessment.py": "5803e74e31dc07908d7a6d01446cac137edccc418647af291f384a895d38a794",
+    "swarmguard/monitoring/workflow_context.py": "e4ec0fd1f4fe15179691e32885728b4f8fa784e30029150a4b6c37c3f7ed4732",
+    "swarmguard/research/rq1_followup.py": "8597fc2d9e3e755ff5b52ee095ffe192eec218dbb464b47825731842e9beb2fd",
+    "swarmguard/research/rq1_lab.py": "50aac0e3fb89ca249a5c9fcefc356fdd8b873dcc38ddbffefd8a12af74bf955b",
+    "swarmguard/security/invariants.py": "a5f4c910f1b726db848dc8308da497ebf31a9c798624d616a545c556377c2191",
+    "swarmguard/security/pattern_detector.py": "7530fa6f7ba5a7f22695135a044faef6ffee548d98414199ec2f09584c5f8a97",
+    "swarmguard/security/risk_analyzer.py": "0260a27b1c164047ebfb88c1538049038c0bf31a878a97ef3474db3bcd2ba82d",
+    "swarmguard/research/rq1_llm.py": "5ede063fe674b5354e9e1662b09c87f2801c033681dbcdda0b653c91b8ac7e05",
+    "swarmguard/ethics/prompts.py": "da8a66bc350d60146465412ee48fa6a00ea85a2a902f2520f18f41472346738d",
+    "swarmguard/ethics/general_monitor.py": "b6518aee65f5be140b1751c890d4e4e9d0717d6c5e69ebd875aefd24f1333399",
+    "swarmguard_providers/rq1.py": "c3a091c696b4f6a6265f70a7d1e1388bcf1da06e671bd952263b98e39098c8dd",
+    "frontend/src/pages/RQ1Lab.tsx": "6f0ef9f25c1a096164e76a658e71686aa6c84e57de5ec1f471a49ab97c2a008d"
+  },
+  "note": "Pre-registered before any LLM call on rq1_robustness_60. Written after Experiments 005 and 006 were reviewed; deterministic results on this dataset were already known. The 006 freeze is unchanged and still governs rules-only runs."
+}

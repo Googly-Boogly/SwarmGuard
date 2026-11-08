@@ -47,10 +47,24 @@ def test_oracle_uses_executed_packets_and_rejects_missing_or_changed_output():
     assert not data.audit(case,[action],[changed])['valid']
 
 
-@pytest.mark.parametrize('patch',[{'trials':2},{'llm_mode':'mock'},
-    {'llm_mode':'live','confirm_paid_calls':True,'llm_max_cost_usd':1.0}])
-def test_followup_refuses_repetitions_and_llm_modes(patch):
+@pytest.mark.parametrize('patch',[{'trials':2},{'seed':1},{'scenario_ids':['rq1r_authorized_01']},
+    {'llm_mode':'live'},{'llm_mode':'live','confirm_paid_calls':True}])
+def test_followup_refuses_repetitions_subsets_and_unconfirmed_live_calls(patch):
     with pytest.raises(ValueError):RQ1ExperimentConfig(partition=data.DATASET_ID,**patch)
+
+
+@pytest.mark.parametrize('patch',[{'llm_mode':'mock'},
+    {'llm_mode':'live','confirm_paid_calls':True,'llm_max_cost_usd':1.0}])
+def test_followup_accepts_the_llm_arm_under_the_008_protocol(patch):
+    config=RQ1ExperimentConfig(partition=data.DATASET_ID,**patch)
+    assert config.trials==1 and config.seed==0 and config.scenario_ids is None
+    assert rq1_followup.freeze_path(config.llm_mode)==rq1_followup.LLM_FREEZE
+    assert rq1_followup.protocol_version(config.llm_mode)=='rq1-008-llm-protocol-1'
+
+
+def test_rules_only_followup_keeps_the_historical_006_freeze():
+    assert rq1_followup.freeze_path('none')==rq1_followup.FREEZE
+    assert rq1_followup.protocol_version('none')=='rq1-006-protocol-1'
 
 
 def test_frozen_005_catalog_and_code_remain_unchanged():

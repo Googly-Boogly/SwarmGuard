@@ -112,8 +112,8 @@ class RQ1ExperimentConfig(StrictModel):
 
     @model_validator(mode="after")
     def _paired(self) -> RQ1ExperimentConfig:
-        if self.partition == rq1_followup.PARTITION and (self.trials != 1 or self.llm_mode != "none" or self.scenario_ids is not None or self.seed != 0):
-            raise ValueError("The 60-workflow follow-up requires all 60 scenarios, seed 0, one execution per scenario and rules-only monitoring")
+        if self.partition == rq1_followup.PARTITION and (self.trials != 1 or self.scenario_ids is not None or self.seed != 0):
+            raise ValueError("The 60-workflow follow-up requires all 60 scenarios, seed 0 and one execution per scenario")
         if sorted(self.monitors) != sorted([LOCAL, GLOBAL]):
             raise ValueError("RQ1 requires exactly the paired local_action and global_workflow monitors")
         if self.scenario_ids is not None and (not self.scenario_ids or len(set(self.scenario_ids)) != len(self.scenario_ids)):
@@ -143,7 +143,7 @@ def dataset_summaries() -> list[dict[str, Any]]:
             "partition": partition, "dataset_version": m["dataset_version"], "content_hash": m["content_hash"],
             "n": m["n"], "unsafe": labels.get("UNSAFE", 0), "legitimate": labels.get("SAFE", 0),
             "composition": m["composition"], "categories": sorted(m["composition"]),
-            "frozen": partition != "development", "matches_frozen_hash": rq1_followup.frozen() if partition == rq1_followup.PARTITION else m["content_hash"] == FROZEN_DATASET_HASH,
+            "frozen": partition != "development", "matches_frozen_hash": (rq1_followup.frozen("none") or rq1_followup.frozen("live")) if partition == rq1_followup.PARTITION else m["content_hash"] == FROZEN_DATASET_HASH,
             "role": "Primary RQ1 evidence (frozen held-out set)" if partition == "held_out"
                     else "Post-005 follow-up: 60 distinct workflows; 48 legitimate, 12 unsafe" if partition == rq1_followup.PARTITION else "Development and pilot only; never RQ1 evidence",
             "scenarios": [{"scenario_id": s["scenario_id"], "category": s["category"], "family": s["family"],
@@ -232,8 +232,22 @@ async def validate_config(config: RQ1ExperimentConfig, llm_status: dict[str, Any
         add("dataset", "Dataset exists", "FAIL", f"Held-out content hash {manifest['content_hash'][:16]}… differs "
             f"from the frozen protocol hash {FROZEN_DATASET_HASH[:16]}…")
     elif config.partition == rq1_followup.PARTITION:
-        add("dataset", "Frozen follow-up dataset and protocol", "PASS" if rq1_followup.frozen() else "FAIL",
-            f"{manifest['dataset_version']}, {manifest['n']} workflows; freeze {'matches' if rq1_followup.frozen() else 'missing or changed'}. Follow-up designed after Experiment 005.")
+        ok = rq1_followup.frozen(config.llm_mode)
+        protocol = rq1_followup.protocol_version(config.llm_mode)
+        add("dataset", "Frozen follow-up dataset and protocol", "PASS" if ok else "FAIL",
+            f"{manifest['dataset_version']}, {manifest['n']} workflows; {protocol} freeze "
+            f"({rq1_followup.freeze_path(config.llm_mode).name}) {'matches' if ok else 'missing or changed'}. "
+            "Follow-up designed after Experiment 005."
+            + ("" if config.llm_mode == "none" else " LLM arm (Experiment 008 protocol) runs on the same 60 workflows."))
+        if config.llm_mode != "none" and rq1_followup.LLM_FREEZE.exists():
+            frozen_llm = json.loads(rq1_followup.LLM_FREEZE.read_text()).get("llm", {})
+            mismatch = [k for k in ("checkpoint_policy",) if frozen_llm.get(k) != config.llm_checkpoints]
+            if config.llm_mode == "live" and llm_status and frozen_llm.get("model") != llm_status.get("live", {}).get("model"):
+                mismatch.append("model")
+            add("llm_protocol", "LLM arm matches the pre-registered protocol", "FAIL" if mismatch else "PASS",
+                f"Differs from the 008 freeze: {', '.join(mismatch)}." if mismatch else
+                f"Checkpoints {frozen_llm.get('checkpoint_policy')}, model {frozen_llm.get('model')}, prompt "
+                f"{frozen_llm.get('prompt_version')} as pre-registered.")
     elif config.partition == "development":
         add("dataset", "Dataset exists", "WARN", f"Development partition ({manifest['n']} Stage 2 scenarios, hash "
             f"{manifest['content_hash'][:16]}…): debugging and pilot only, never RQ1 evidence.")
@@ -306,7 +320,7 @@ async def validate_config(config: RQ1ExperimentConfig, llm_status: dict[str, Any
     prints = _fingerprints()
     changed = [k for k, v in prints.items() if not v["match"]]
     add("scoring", "Scoring rules are consistent", "PASS" if RULESET_VERSION == FROZEN_RULESET else "WARN",
-        f"Frozen workflow-level timely detection ({rq1_followup.PROTOCOL_VERSION if config.partition == rq1_followup.PARTITION else rq1.PROTOCOL_VERSION}); mapping: {POSITIVE_MAPPING}. "
+        f"Frozen workflow-level timely detection ({rq1_followup.protocol_version(config.llm_mode) if config.partition == rq1_followup.PARTITION else rq1.PROTOCOL_VERSION}); mapping: {POSITIVE_MAPPING}. "
         f"Ruleset {RULESET_VERSION}" + ("" if RULESET_VERSION == FROZEN_RULESET else f" differs from frozen {FROZEN_RULESET}") + ".")
     add("frozen_code", "Code matches the frozen protocol", "WARN" if changed else "PASS",
         f"Differs from the rq1-protocol-1 fingerprints: {', '.join(changed)}." if changed
@@ -918,7 +932,9 @@ class RQ1Laboratory:
             raise ValueError("configuration is INVALID: " + "; ".join(
                 c["detail"] for c in validation["checks"] if c["status"] == "FAIL"))
         eid = self.db.next_id("rq1_experiment")
-        revision = json.loads(rq1_followup.FREEZE.read_text())["code_revision"] if config.partition == rq1_followup.PARTITION else self.revision
+        # Experiment 006 (rules-only) records its freeze revision; LLM runs record the server's actual revision.
+        revision = (json.loads(rq1_followup.FREEZE.read_text())["code_revision"]
+                    if config.partition == rq1_followup.PARTITION and config.llm_mode == "none" else self.revision)
         record = {"experiment_id": eid, "research_question": "RQ1", "status": "QUEUED", "config": config.model_dump(),
                   "created_by": actor, "created_at": self._now(), "started_at": None, "completed_at": None,
                   "validation": validation, "preregistered_procedure": preregistered(config, validation["dataset_hash"]),
@@ -1076,7 +1092,7 @@ class RQ1Laboratory:
                 if config.partition == rq1_followup.PARTITION:
                     result_payload["result_hashes"] = {k: hashlib.sha256(json.dumps(result_payload[k], sort_keys=True).encode()).hexdigest()
                                                        for k in ("results", "manifest", "analysis", "verification")}
-                    result_payload["protocol_freeze"] = json.loads(rq1_followup.FREEZE.read_text())
+                    result_payload["protocol_freeze"] = json.loads(rq1_followup.freeze_path(config.llm_mode).read_text())
                 self.repo.create(RESULT_KIND, experiment_id, result_payload, actor="swarmguard.rq1_laboratory", occurred_at=self._now())
                 problems = (crosscheck + verification["failures"] + analysis["missing_or_failed"] +
                             [f"trial {r['trial']} not reproduced" for r in reproducibility

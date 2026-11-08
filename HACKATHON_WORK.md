@@ -514,3 +514,22 @@ Revision-mapping clarification for 006 (no historical record rewritten): all 13 
 listed in its freeze match commit `fb8324adde507bfcab12a7dfd3b1efacc9689eff` byte-for-byte.
 Its original run revision stays `65628205db0275c96a254438a55d647bb40bf4ac-dirty`.
 This later mapping does not recover an unknown original commit for 005.
+
+## Experiment 008 preparation: live-LLM arm on the 60-workflow set (2026-11-08)
+
+Enabled the existing LLM arm (`GeneralSafetyMonitor`, prompt `ethics_v2`, gpt-6-luna) on
+`rq1_robustness_60` under a new, separately frozen protocol `rq1-008-llm-protocol-1`
+(`research/rq1/experiment_008_protocol.md`, `experiment_008_freeze.json`). The 60-set still
+requires all scenarios, seed 0 and one execution; LLM runs check the 008 freeze, record the
+server's actual code revision and store the 008 freeze with their result. No detector, prompt,
+scoring rule, dataset, label or historical record changed; the 006 freeze file is untouched.
+Consequence: because `rq1_lab.py` and `rq1_followup.py` changed, HEAD no longer matches the
+006 freeze, so rules-only runs on the 60-set are now refused. 006 remains reproducible from
+`fb8324a`. Written after 005/006 were reviewed; deterministic results on this set were known.
+
+Verification: offline mock dry run in a scratch in-memory database (no network, console DB
+untouched): COMPLETED, 556 synthetic LLM calls, rules arms reproduced 006 exactly
+(Local 1/17/31/11, Global 8/0/48/4); mock outputs are synthetic and not evidence. Live
+validation (no calls) passes all protocol/isolation checks but reports a worst-case estimate of
+$22.53 for 556 calls at the 80,000-token output cap, above the $10 server cap. No live LLM call
+has been made for 008.

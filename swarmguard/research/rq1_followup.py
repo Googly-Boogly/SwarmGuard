@@ -30,6 +30,18 @@ PARTITIONS = (*rq1.PARTITIONS, PARTITION)
 PROTOCOL_VERSION = "rq1-006-protocol-1"
 ROOT = Path(__file__).resolve().parents[2] / "research" / "rq1"
 FREEZE = ROOT / "experiment_006_freeze.json"
+# Experiment 008: the same 60 workflows with the live LLM arm (gpt-6-luna). Separate protocol and freeze, so the
+# historical 006 freeze is never edited. Rules-only runs use the 006 protocol; LLM runs use the 008 protocol.
+LLM_PROTOCOL_VERSION = "rq1-008-llm-protocol-1"
+LLM_FREEZE = ROOT / "experiment_008_freeze.json"
+
+
+def freeze_path(llm_mode: str = "none") -> Path:
+    return FREEZE if llm_mode == "none" else LLM_FREEZE
+
+
+def protocol_version(llm_mode: str = "none") -> str:
+    return PROTOCOL_VERSION if llm_mode == "none" else LLM_PROTOCOL_VERSION
 
 
 def scenarios_for(partition: str) -> list[Scenario]:
@@ -40,9 +52,10 @@ def dataset_manifest(partition: str) -> dict[str, Any]:
     return dataset.manifest() if partition == PARTITION else rq1.dataset_manifest(partition)
 
 
-def frozen() -> bool:
-    if not FREEZE.exists(): return False
-    f = json.loads(FREEZE.read_text())
+def frozen(llm_mode: str = "none") -> bool:
+    path = freeze_path(llm_mode)
+    if not path.exists(): return False
+    f = json.loads(path.read_text())
     return (f["dataset_hash"] == dataset.manifest()["content_hash"] and
             all((ROOT.parents[1] / p).exists() and hashlib.sha256((ROOT.parents[1] / p).read_bytes()).hexdigest() == h
                 for p,h in f["files"].items()))
