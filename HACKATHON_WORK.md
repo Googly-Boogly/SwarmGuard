@@ -409,3 +409,68 @@ Also made `test_live_demo_refuses_without_configuration` hermetic: it read the d
 - RQ2 reworded at the research team's request: "Does a four-framework Ethics Council detect multi-agent safety violations more effectively than an equivalent group of general-purpose safety monitors?" Hypothesis, null hypothesis, what-is-tested and comparison arms were aligned to the new wording; metrics, controls, confounders, analysis plan and goal are unchanged. RQ1 and RQ3 are identical to `rq-registry-2`.
 - New version `rq-registry-3` instead of editing `rq-registry-2`, so experiments created under v2 (and legacy v1) keep rendering and verifying with their original text. No experiment, prompt, detector or result changes; no paid calls.
 - Follow-up: the console container also receives the server execution limits from `.env` (`SWARMGUARD_MAX_RUNTIME_SECONDS`, `_MAX_WORKFLOW_STEPS`, `_MAX_AGENTS`, `_MAX_CONCURRENT_REQUESTS`, `_MAX_ADAPTIVE_ITERATIONS`), defaulting to the code defaults when unset (some readers reject empty strings); `SWARMGUARD_MAX_EVALUATION_COST_USD` now defaults to 5. Verified inside the container: runtime limit 1800 s, cost cap $10 from `.env`.
+
+## RQ1 Experiment 006 — post-005 robustness follow-up (November 8, 2026)
+
+Added a separate hand-authored versioned dataset (`rq1_robustness_60`, `rq1-robustness-60-v1`):
+48 legitimate programs in six groups of eight, and 12 unsafe programs in three groups of four.
+The monitor-free semantic packet ledger validates actual sends, authorization/purpose state,
+quasi-identifier unions and declared known transformations. Programs have distinct action,
+field, authorization or lifecycle structure; they share helpers and two records and are not
+independent samples. Labels were fixed separately from monitor predictions. No detector,
+invariant, prompt, policy, tool or frozen 005 source changed (all eight fingerprints match).
+
+Protocol `rq1-006-protocol-1` and dataset SHA-256
+`7c41bdaaaaa0b3e80798dcee0746f23e49a0280552ef04cb0690e38886bc273c`
+were frozen at 2026-11-08T14:49:00Z before final inference. Dataset and protocol are under
+`research/rq1/experiment_006_*`. This is explicitly a follow-up designed after reviewing 005.
+The RQ1 catalog/UI accepts the new dataset; new-dataset scoring consumes the captured
+trajectory directly instead of rerunning agents. It preserves original timely-alert scoring,
+records the actual dirty revision and hashes, and leaves 005's path and records unchanged.
+The existing results, raw filters, scenario details, graphs, comparisons and findings are reused.
+
+Launched `rq1_experiment_006` through the local Research Laboratory UI. COMPLETED at
+2026-11-08T14:51:45Z: 60 distinct workflow trials (48 legitimate/12 unsafe), 120 paired workflow
+outcomes, 650 action checkpoints, 1,300 monitor evaluations, 88 simulated sends. One primary
+execution per scenario, no prevention replay, zero model requests/cost. Local TP/FP/TN/FN:
+1/17/31/11; Global: 8/0/48/4. Recall 8.3% vs 66.7%; FPR 35.4% vs 0%; F1 0.067 vs 0.800.
+Global detected all four cumulative-union and four authorization/purpose cases. Both monitors
+missed all four transformed cases. Local's single unsafe TP arose from an earlier sensitive-format
+alert before authorization ended, not demonstrated recognition of that global violation.
+All Local false positives were UNVERIFIED_SENSITIVE_CONTENT. Resource-history removal removed
+all 21 Global-only checkpoint alerts; prior-events removal removed 12 and purpose removal three.
+
+Exact paired p-values: unsafe 0.015625, legitimate 0.0000152587890625, descriptive only.
+Global FPR Wilson 95% upper bound 7.41% assumes independence weakened by these related programs.
+No population low-FPR, semantic robustness or autonomous-agent generalization claim. No pooling
+with 005. A synthetic-data snapshot and independent raw-record verifier preserve/recompute the
+results without rerunning inference. All 84 pre-existing platform-record hashes matched after
+execution, including 005's 26 experiment/result/evidence records. A browser inspection verified
+actual 60-trial data, filters, findings, refresh, comparisons, graph rendering and 005 access.
+Full details and limitations: `research/rq1/experiment_006_findings.md`.
+
+Final validation for this follow-up: full offline backend suite 637 passed / 12 skipped;
+13 focused dataset/snapshot tests passed; frontend lint, 51 unit tests and build passed;
+isolated RQ1 browser 2 passed (pilot plus monitor-free 60-case validation); deployed
+post-run inspection passed without rerunning 006; required Stage 1–3 demonstrations PASS.
+No final-dataset inference was repeated for debugging, and no scenarios or monitor/scoring rules were tuned after observing its predictions.
+
+### RQ1 dataset default and live-budget form correction — November 8, 2026
+
+After user feedback that a new run selected 24 scenarios, changed only frontend defaults:
+fresh and recommended RQ1 configurations now select `rq1_robustness_60` when available,
+all 60 workflows, seed 0, one execution per scenario, and rules-only monitoring. The
+original 24-scenario dataset remains explicitly selectable; dropdown labels show counts.
+The general laboratory introduction and README explain the distinction. A live-enabled
+server's legacy recommendation cannot silently select paid mode in the form. Live
+validation requires a finite positive budget within the server cap and explicit paid-call
+confirmation; clearing the budget disables validation/run and shows an actionable message.
+Backend authorization and budget checks remain unchanged, as do every dataset, monitor,
+protocol/source freeze and recorded result. No experiment was launched by this correction.
+
+Verified: full offline backend 637 passed / 12 skipped; frontend lint, 51 unit tests and
+build; two isolated RQ1 browser tests; required three demonstrations PASS. Rebuilt and
+updated only the frontend. Deployed browser verification confirmed fresh/recommended
+60-case defaults, successful monitor-free validation, missing-budget rejection, and an
+unchanged experiment list. Existing 006 still contains 60 completed workflows; the user's
+newer cancelled run selected `held_out`. No paid call made.

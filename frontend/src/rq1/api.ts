@@ -5,7 +5,7 @@ export type Json = Record<string, unknown>
 export type Num = number | null
 
 export type RQ1Config = {
- partition: 'held_out' | 'development'
+ partition: 'held_out' | 'development' | 'rq1_robustness_60'
  scenario_ids: string[] | null
  seed: number
  trials: number
@@ -29,7 +29,7 @@ export type Check = { id: string; title: string; status: 'PASS' | 'WARN' | 'FAIL
 export type Validation = { status: 'VALIDATED' | 'WARNINGS' | 'INVALID'; checks: Check[]; llm_estimate?: LLMEstimate | null; known_limitations: string[]; selected_scenarios: number; unsafe: number; legitimate: number; dataset_hash: string; dataset_version: string; note: string }
 export type Headline = Record<string, unknown> & { n_workflows: number; decision_rule: DecisionRule }
 export type DecisionRule = { applies: boolean; satisfied: boolean | null; note: string; global_recall_higher?: boolean; fpr_within_margin?: boolean; observation_checks_passed?: boolean; reason?: string }
-export type Progress = { phase: string; total_workflows: number; completed_workflows: number; failed_workflows: number; current_workflow: string | null; current_scenario: string | null; phases: { phase: string; started_at: string }[]; elapsed_seconds?: number }
+export type Progress = { monitor_evaluations_completed?: number; phase: string; total_workflows: number; completed_workflows: number; failed_workflows: number; current_workflow: string | null; current_scenario: string | null; phases: { phase: string; started_at: string }[]; elapsed_seconds?: number }
 export type Activity = { workflow_id: string; scenario_id: string; seq: number; time: string | null; kind: string; agent_id: string | null; text: string }
 export type ExperimentSummary = { experiment_id: string; status: string; config: RQ1Config; created_by: string; created_at: string; started_at: string | null; completed_at: string | null; progress: Progress; error: string | null; headline: Headline | null; preregistered_procedure: boolean; execution_mode: string; integrity_problems?: string[]; llm?: LLMInfo | null; llm_usage?: LLMUsage | null; model_requests?: number; estimated_cost_usd?: number }
 export type Experiment = ExperimentSummary & { validation: Validation; activity: Activity[]; failures: { workflow_id: string; scenario_id: string; phase: string; error: string }[]; code_revision: string; model_requests: number; estimated_cost_usd: number; cancel_requested_by?: string }
@@ -55,7 +55,7 @@ export type Results = {
 }
 export type Paired = { n: number; both: number; only_global: number; only_local: number; neither: number; exact_mcnemar_p_two_sided: Num; only_global_ids: string[]; only_local_ids: string[]; neither_ids: string[] }
 export type Ablation = { scenario_id: string; workflow_id: string; step: number; action_id: string; tool: string; global_patterns: string[]; global_evidence_event_types: string[]; global_evidence_outside_local_window: string[]; ablations: Record<string, { alert: boolean | null; recommendation?: string; patterns?: string[]; error?: string }>; alert_removed_by: string[] }
-export type Findings = { llm_performance?: string; llm?: LLMInfo; research_question: string; experiment_summary: string; detection_performance: string; false_positives: string; detection_latency: string; context_analysis: string; gateway_and_prevention: string; decision_rule: DecisionRule; case_counts: Record<string, number>; limitations: string[]; interesting_cases: Record<string, string[]>; copy: Record<'results_summary' | 'metrics_table' | 'methodology' | 'limitations', string>; statement: string }
+export type Findings = { followup_sections?: Record<string, string>; llm_performance?: string; llm?: LLMInfo; research_question: string; experiment_summary: string; detection_performance: string; false_positives: string; detection_latency: string; context_analysis: string; gateway_and_prevention: string; decision_rule: DecisionRule; case_counts: Record<string, number>; limitations: string[]; interesting_cases: Record<string, string[]>; copy: Record<'results_summary' | 'metrics_table' | 'methodology' | 'limitations', string>; statement: string }
 export type RawRow = Json & { row_id: string; scenario_id: string; workflow_id: string; monitor: string; configuration: string; status: string; step?: number }
 export type RawPage = { level: string; total: number; page: number; page_size: number; pages: number; rows: RawRow[]; facets: Record<string, string[]> }
 export type ScenarioRow = { llm_local?: string | null; llm_global?: string | null; llm_local_correct?: boolean | null; llm_global_correct?: boolean | null; scenario_id: string; workflow_id: string | null; category: string; family: string; ground_truth: string; agent_count: number; workflow_steps: number; description: string; local: string | null; global: string | null; local_correct: boolean | null; global_correct: boolean | null; status: string }

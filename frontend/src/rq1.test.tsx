@@ -65,22 +65,30 @@ describe('RQ1 laboratory', () => {
  })
 
  it('LLM controls show live availability reasons and require paid-call confirmation for live runs', async () => {
-  const live = { ...overview, llm_status: { ...overview.llm_status, live: { ...overview.llm_status.live, available: true, reasons: [] } } }
+  const live = { ...overview, recommended_config: { ...config, llm_mode: 'live', llm_max_cost_usd: null, confirm_paid_calls: false }, llm_status: { ...overview.llm_status, live: { ...overview.llm_status.live, available: true, reasons: [] } } }
   api(path => path === '/api/research/rq1/validate' ? { ...validation, status: 'VALIDATED', llm_estimate: { calls: 48, estimated_input_tokens: 376140, max_output_tokens_total: 38400, estimated_max_cost_usd: 0.53, note: 'estimate' } } : live)
   mount(<RQ1LabPage view="new"/>)
   const mode = await screen.findByRole('combobox', { name: 'LLM mode' })
+  expect(mode).toHaveValue('none')
   expect(within(mode).getByRole('option', { name: /Live — openai · gpt-x \(paid\)/ })).toBeEnabled()
   fireEvent.change(mode, { target: { value: 'live' } })
   expect(screen.getByLabelText('C · LLM Local monitor (llm_local)')).toBeChecked()
   expect(screen.getByRole('spinbutton', { name: 'Maximum cost' })).toHaveValue(1)
-  fireEvent.click(screen.getByRole('button', { name: 'VALIDATE METHODOLOGY' }))
-  expect(await screen.findByText(/48 calls · ~376,140 input tokens · worst-case cost \$0.53/)).toBeInTheDocument()
+  expect(screen.getByRole('button', { name: 'VALIDATE METHODOLOGY' })).toBeDisabled()
   const run = screen.getByRole('button', { name: 'RUN RQ1 EXPERIMENT' })
   expect(run).toBeDisabled()
   fireEvent.click(screen.getByLabelText('Confirm paid calls'))
-  expect(run).toBeDisabled()  // confirmation changed the settings, so they must be re-validated
   fireEvent.click(screen.getByRole('button', { name: 'VALIDATE METHODOLOGY' }))
+  expect(await screen.findByText(/48 calls · ~376,140 input tokens · worst-case cost \$0.53/)).toBeInTheDocument()
   await waitFor(() => expect(run).toBeEnabled())
+  fireEvent.change(screen.getByRole('spinbutton', { name: 'Maximum cost' }), { target: { value: '' } })
+  expect(screen.getByRole('alert')).toHaveTextContent('Enter a positive maximum cost')
+  expect(screen.getByRole('button', { name: 'VALIDATE METHODOLOGY' })).toBeDisabled()
+  expect(screen.getByLabelText('Confirm paid calls')).toBeDisabled()
+  expect(run).toBeDisabled()
+  fireEvent.change(screen.getByRole('spinbutton', { name: 'Maximum cost' }), { target: { value: '1' } })
+  expect(screen.getByLabelText('Confirm paid calls')).not.toBeChecked()
+  expect(screen.getByRole('button', { name: 'VALIDATE METHODOLOGY' })).toBeDisabled()
  })
 
  it('live LLM is shown as unavailable with the server reasons', async () => {
@@ -145,4 +153,24 @@ describe('RQ1 laboratory', () => {
   expect(screen.getByText('UNAVAILABLE')).toBeInTheDocument()
   expect(screen.getByText('UNSAFE')).toBeInTheDocument()
  })
+})
+
+it('selects the 60-workflow follow-up, disables repeats/live calls, and validates the paired configuration', async () => {
+ const extended = { ...overview, datasets: [...overview.datasets, { partition: 'rq1_robustness_60', dataset_version: 'rq1-robustness-60-v1', content_hash: 'c'.repeat(64), n: 60, unsafe: 12, legitimate: 48, categories: ['authorized'], composition: { authorized: { SAFE: 8, UNSAFE: 0 } }, frozen: true, matches_frozen_hash: true, role: 'Follow-up', scenarios: [] }] }
+ const fetch = api(path => path === '/api/research/rq1/validate' ? { ...validation, selected_scenarios: 60, legitimate: 48, unsafe: 12, dataset_version: 'rq1-robustness-60-v1' } : extended)
+ mount(<RQ1LabPage view="new"/>)
+ const selector = await screen.findByRole('combobox', { name: 'Dataset' })
+ expect(selector).toHaveValue('rq1_robustness_60')
+ fireEvent.change(selector, { target: { value: 'held_out' } })
+ fireEvent.click(screen.getByRole('button', { name: 'USE RECOMMENDED RQ1 SETTINGS' }))
+ expect(selector).toHaveValue('rq1_robustness_60')
+ expect(screen.getByText(/60 total workflow trials · 12 unsafe · 48 legitimate/)).toBeInTheDocument()
+ expect(screen.getByRole('combobox', { name: 'LLM mode' })).toBeDisabled()
+ expect(screen.getByRole('combobox', { name: 'LLM mode' })).toHaveValue('none')
+ expect(screen.getByRole('spinbutton', { name: 'Number of trials' })).toBeDisabled()
+ expect(screen.getByRole('button', { name: 'RUN EXPERIMENT 008' })).toBeDisabled()
+ fireEvent.click(screen.getByRole('button', { name: 'VALIDATE METHODOLOGY' }))
+ await waitFor(() => expect(screen.getByRole('button', { name: 'RUN EXPERIMENT 008' })).toBeEnabled())
+ const sent = JSON.parse(String(fetch.mock.calls.find(c => c[0] === '/api/research/rq1/validate')![1]!.body))
+ expect(sent).toMatchObject({ partition: 'rq1_robustness_60', scenario_ids: null, trials: 1, seed: 0, llm_mode: 'none', monitors: ['local_action', 'global_workflow'] })
 })

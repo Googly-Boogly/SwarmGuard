@@ -51,27 +51,41 @@ export function ExperimentList({ experiments }: { experiments: ExperimentSummary
  </Panel>
 }
 
+function defaultRQ1Config(o: Overview): RQ1Config {
+ const partition = o.datasets.some(d => d.partition === 'rq1_robustness_60') ? 'rq1_robustness_60' : o.recommended_config.partition
+ return { ...o.recommended_config, partition, scenario_ids: null, seed: 0, trials: 1, llm_mode: 'none', llm_max_cost_usd: null, confirm_paid_calls: false }
+}
+
 function RQ1Configure({ o }: { o: Overview }) {
  const navigate = useNavigate()
  const cache = useQueryClient()
- const [config, setConfig] = useState<RQ1Config>(o.recommended_config)
+ const [config, setConfig] = useState<RQ1Config>(() => defaultRQ1Config(o))
  const [subset, setSubset] = useState(false)
  const [validated, setValidated] = useState<{ key: string; result: Validation } | null>(null)
  const dataset = o.datasets.find(d => d.partition === config.partition)!
+ const followup = config.partition === 'rq1_robustness_60'
+ const nextNumber = Math.max(0, ...o.experiments.map(e => Number(e.experiment_id.split('_').at(-1)) || 0)) + 1
  const key = useMemo(() => JSON.stringify(config), [config])
  const current = validated?.key === key ? validated.result : null
+ const cost = config.llm_max_cost_usd
+ const budgetProblem = config.llm_mode !== 'live' ? null
+  : cost === null || !Number.isFinite(cost) || cost <= 0 ? 'Enter a positive maximum cost in USD before validating live LLM monitoring.'
+  : o.llm_status.live.max_cost_cap_usd != null && cost > o.llm_status.live.max_cost_cap_usd ? `Maximum cost exceeds the server cap of $${o.llm_status.live.max_cost_cap_usd}.` : null
+ const liveProblem = budgetProblem ?? (config.llm_mode === 'live' && !config.confirm_paid_calls ? 'Confirm paid calls before validating live LLM monitoring.' : null)
  const update = (patch: Partial<RQ1Config>) => setConfig(c => ({ ...c, ...patch }))
  const validate = useMutation({ mutationFn: () => post<Validation>('/api/research/rq1/validate', config), onSuccess: r => setValidated({ key, result: r }) })
  const run = useMutation({ mutationFn: () => post<{ experiment_id: string }>('/api/research/rq1/experiments', config), onSuccess: async r => { await cache.invalidateQueries({ queryKey: ['rq1'] }); navigate(`/research/rq1/experiments/${r.experiment_id}`) } })
- const recommended = () => { setConfig(o.recommended_config); setSubset(false) }
+ const recommended = () => { setConfig(defaultRQ1Config(o)); setSubset(false) }
  const pilot = () => { setConfig(o.pilot_config); setSubset(true) }
  const toggle = (id: string) => { const now = new Set(config.scenario_ids ?? []); now.has(id) ? now.delete(id) : now.add(id); update({ scenario_ids: [...now].sort() }) }
  return <>
   <Panel title="1 · Configure experiment" subtitle="All controls map to a validated backend configuration. Changing any setting requires re-validation." action={<div className="rq1-row-actions"><Button variant="outline" onClick={recommended}><Wand2 size={14}/>USE RECOMMENDED RQ1 SETTINGS</Button><Button variant="ghost" onClick={pilot}>Use pilot settings (2 development scenarios)</Button></div>}>
    <form className="rq1-form" onSubmit={e => e.preventDefault()} aria-label="RQ1 experiment configuration">
+    <label>Experiment title<input readOnly value={followup ? 'RQ1 follow-up — 60-trial robustness and false-positive validation' : 'RQ1 — Local versus Global monitoring'}/></label>
     <label>Research question<select value="RQ1" disabled aria-describedby="rq-note"><option>RQ1 — Global Workflow Monitoring</option></select><small id="rq-note">Preselected. Other questions are in the general Research Laboratory.</small></label>
-    <label>Dataset<select aria-label="Dataset" value={config.partition} onChange={e => { update({ partition: e.target.value as RQ1Config['partition'], scenario_ids: null }); setSubset(false) }}>{o.datasets.map(d => <option key={d.partition} value={d.partition}>{d.partition} · {d.dataset_version}</option>)}</select>
-     <small>{dataset.n} scenarios · {dataset.unsafe} unsafe · {dataset.legitimate} legitimate · {dataset.role}</small></label>
+    <label>Dataset<select aria-label="Dataset" value={config.partition} onChange={e => { update({ partition: e.target.value as RQ1Config['partition'], scenario_ids: null, ...(e.target.value === 'rq1_robustness_60' ? { llm_mode: 'none', trials: 1, confirm_paid_calls: false, llm_max_cost_usd: null } : {}) }); setSubset(false) }}>{o.datasets.map(d => <option key={d.partition} value={d.partition}>{d.partition} · {d.n} scenarios · {d.dataset_version}</option>)}</select>
+     <small>{dataset.n} total workflow trials · {dataset.unsafe} unsafe · {dataset.legitimate} legitimate · {dataset.role}</small></label>
+    {followup && <p className="muted small-text" role="note">The 60-scenario follow-up uses rules-only monitoring: 48 legitimate and 12 unsafe workflows. Live LLM monitoring is a separate option on the original held-out dataset.</p>}
     <fieldset><legend>Scenario categories ({dataset.dataset_version})</legend><table className="rq1-mini"><tbody>{Object.entries(dataset.composition).map(([c, v]) => <tr key={c}><td>{c.replaceAll('_', ' ')}</td><td>{v.UNSAFE} unsafe</td><td>{v.SAFE} legitimate</td></tr>)}</tbody></table><small className="mono">sha256 {dataset.content_hash.slice(0, 24)}…</small></fieldset>
     <fieldset><legend>Monitoring configurations</legend>
      <label className="inline"><input type="checkbox" checked disabled/> A · Local Monitor (local_action)</label>
@@ -81,7 +95,7 @@ function RQ1Configure({ o }: { o: Overview }) {
      <small>A–B: deterministic rules. C–D: one LLM safety monitor (same prompt, model and token cap) on the Local vs. the Global view. Enable C–D with “LLM monitors” below. {o.unavailable_options.monitors.global_ethics_council}</small></fieldset>
     <fieldset style={{ gridColumn: '1/-1' }} aria-label="LLM monitors"><legend>LLM monitors ({o.llm_protocol_version})</legend>
      <div className="rq1-grid">
-      <label>LLM mode<select aria-label="LLM mode" value={config.llm_mode} onChange={e => update({ llm_mode: e.target.value as RQ1Config['llm_mode'], confirm_paid_calls: false, llm_max_cost_usd: e.target.value === 'live' ? (config.llm_max_cost_usd ?? 1) : null })}>
+      <label>LLM mode<select disabled={followup} aria-label="LLM mode" value={config.llm_mode} onChange={e => update({ llm_mode: e.target.value as RQ1Config['llm_mode'], confirm_paid_calls: false, llm_max_cost_usd: e.target.value === 'live' ? (config.llm_max_cost_usd ?? 1) : null })}>
        <option value="none">None — rules only (no model is called)</option>
        <option value="mock" disabled={!o.llm_status.mock.available}>Mock — synthetic responder, pipeline test only{o.llm_status.mock.available ? '' : ' (unavailable)'}</option>
        <option value="live" disabled={!o.llm_status.live.available}>Live — {o.llm_status.live.provider} · {o.llm_status.live.model ?? 'no model'}{o.llm_status.live.available ? ' (paid)' : ' (unavailable)'}</option>
@@ -92,25 +106,26 @@ function RQ1Configure({ o }: { o: Overview }) {
      </div>
      {!o.llm_status.live.available && <p role="note" className="warning-text small-text">Live LLM calls are unavailable on this server: {o.llm_status.live.reasons.join('; ')}.</p>}
      {config.llm_mode === 'mock' && <p className="warning-text small-text">Mock mode calls the LLM monitor code path with a synthetic rules responder. No model is contacted and the outputs are labelled synthetic; they are never evidence.</p>}
-     {config.llm_mode === 'live' && <label className="inline"><input type="checkbox" aria-label="Confirm paid calls" checked={config.confirm_paid_calls} onChange={e => update({ confirm_paid_calls: e.target.checked })}/> I authorize paid calls to {o.llm_status.live.provider} · {o.llm_status.live.model} up to {config.llm_max_requests} requests and ${config.llm_max_cost_usd ?? '—'} for this experiment.</label>}
+     {config.llm_mode === 'live' && <label className="inline"><input type="checkbox" aria-label="Confirm paid calls" disabled={!!budgetProblem} checked={config.confirm_paid_calls} onChange={e => update({ confirm_paid_calls: e.target.checked })}/> I authorize paid calls to {o.llm_status.live.provider} · {o.llm_status.live.model} up to {config.llm_max_requests} requests and ${config.llm_max_cost_usd ?? '—'} for this experiment.</label>}
     </fieldset>
     <fieldset><legend>Execution mode</legend>
      <label className="inline"><input type="radio" checked readOnly name="mode"/> Scripted (deterministic simulation)</label>
      {Object.entries(o.unavailable_options.execution_modes).map(([m, why]) => <small key={m}><b>{m.replaceAll('_', ' ')}</b>: not offered. {why}</small>)}</fieldset>
-    <label>Number of trials<input aria-label="Number of trials" type="number" min={1} max={3} value={config.trials} onChange={e => update({ trials: Math.max(1, Math.min(3, Number(e.target.value) || 1)) })}/><small>Trial 1 is scored. Trials 2–3 are deterministic reproducibility checks, not extra evidence.</small></label>
-    <label>Random seed<input aria-label="Random seed" type="number" min={0} value={config.seed} onChange={e => update({ seed: Math.max(0, Number(e.target.value) || 0) })}/><small>Controls workflow order and neutral IDs only. Pre-registered: 0.</small></label>
+    <label>Executions per scenario<input disabled={followup} aria-label="Number of trials" type="number" min={1} max={3} value={config.trials} onChange={e => update({ trials: Math.max(1, Math.min(3, Number(e.target.value) || 1)) })}/><small>One workflow is one trial; the two monitor outcomes are paired. Additional executions, when offered, are reproducibility checks only.</small></label>
+    <label>Random seed<input disabled={followup} aria-label="Random seed" type="number" min={0} value={config.seed} onChange={e => update({ seed: Math.max(0, Number(e.target.value) || 0) })}/><small>Controls workflow order and neutral IDs only. Pre-registered: 0.</small></label>
     <label>Model<select disabled><option>{config.llm_mode === 'live' ? `${o.llm_status.live.model} (LLM arm) + RiskAnalyzer rules` : config.llm_mode === 'mock' ? 'mock-structured responder (LLM arm) + RiskAnalyzer rules' : 'RiskAnalyzer rules only (no model)'}</option></select><small>Agents are scripted in every mode; only the monitors differ.</small></label>
     <label>Maximum runtime (seconds)<input aria-label="Maximum runtime" type="number" min={30} max={1800} value={config.max_runtime_seconds} onChange={e => update({ max_runtime_seconds: Number(e.target.value) || 30 })}/></label>
     <label>Maximum steps per workflow<input aria-label="Maximum steps" type="number" min={1} max={200} value={config.max_steps_per_workflow} onChange={e => update({ max_steps_per_workflow: Number(e.target.value) || 1 })}/></label>
     <fieldset style={{ gridColumn: '1/-1' }}><legend>Scenario selection</legend>
      <label className="inline"><input type="radio" name="sel" checked={!subset} onChange={() => { setSubset(false); update({ scenario_ids: null }) }}/> All {dataset.n} scenarios (required for the pre-registered decision rule)</label>
-     <label className="inline"><input type="radio" name="sel" checked={subset} onChange={() => { setSubset(true); update({ scenario_ids: dataset.scenarios.slice(0, 2).map(s => s.scenario_id) }) }}/> Choose a subset (pilot)</label>
+     <label className="inline"><input disabled={followup} type="radio" name="sel" checked={subset} onChange={() => { setSubset(true); update({ scenario_ids: dataset.scenarios.slice(0, 2).map(s => s.scenario_id) }) }}/> Choose a subset (pilot)</label>
      {subset && <div className="rq1-grid" style={{ marginTop: 8 }}>{dataset.scenarios.map(s => <label key={s.scenario_id} className="inline"><input type="checkbox" checked={!!config.scenario_ids?.includes(s.scenario_id)} onChange={() => toggle(s.scenario_id)}/>{s.scenario_id} <small>({s.label === 'SAFE' ? 'legitimate' : 'unsafe'}, {s.category.replaceAll('_', ' ')})</small></label>)}</div>}
     </fieldset>
    </form>
   </Panel>
-  <Panel title="2 · Validate methodology" subtitle="Monitor-free checks run on the server before anything is executed." action={<Button onClick={() => validate.mutate()} disabled={validate.isPending || (subset && !config.scenario_ids?.length)}><ShieldCheck size={14}/>{validate.isPending ? 'VALIDATING…' : 'VALIDATE METHODOLOGY'}</Button>}>
+  <Panel title="2 · Validate methodology" subtitle="Monitor-free checks run on the server before anything is executed." action={<Button onClick={() => validate.mutate()} disabled={validate.isPending || !!liveProblem || (subset && !config.scenario_ids?.length)}><ShieldCheck size={14}/>{validate.isPending ? 'VALIDATING…' : 'VALIDATE METHODOLOGY'}</Button>}>
    <div className="rq1-body">
+    {liveProblem && <p role="alert" className="warning-text">{liveProblem}</p>}
     {validate.error && <ErrorBox error={validate.error}/>}
     {validated && !current && <p role="status" className="warning-text">Settings changed after validation. Validate again before running.</p>}
     {current ? <ValidationReport v={current}/> : !validate.isPending && <p className="muted">Not validated yet.</p>}
@@ -120,7 +135,7 @@ function RQ1Configure({ o }: { o: Overview }) {
    <div className="rq1-body">
     {run.error && <ErrorBox error={run.error}/>}
     {current?.llm_estimate && <p className="small-text">LLM arm: {current.llm_estimate.calls} calls · ~{current.llm_estimate.estimated_input_tokens.toLocaleString()} input tokens · worst-case cost {config.llm_mode === 'live' ? (current.llm_estimate.estimated_max_cost_usd === null ? 'unbounded' : `$${current.llm_estimate.estimated_max_cost_usd}`) : '$0 (mock)'} <span className="muted">({current.llm_estimate.note})</span></p>}
-    <Button onClick={() => run.mutate()} disabled={!current || current.status === 'INVALID' || run.isPending || (config.llm_mode === 'live' && !config.confirm_paid_calls)}><Play size={14}/>{run.isPending ? 'STARTING…' : 'RUN RQ1 EXPERIMENT'}</Button>
+    <Button onClick={() => run.mutate()} disabled={!current || current.status === 'INVALID' || !!liveProblem || run.isPending || (config.llm_mode === 'live' && !config.confirm_paid_calls)}><Play size={14}/>{run.isPending ? 'STARTING…' : followup ? `RUN EXPERIMENT ${String(nextNumber).padStart(3, '0')}` : 'RUN RQ1 EXPERIMENT'}</Button>
     <p className="muted small-text">{!current ? 'Enabled after a successful validation of the current settings.' : current.status === 'INVALID' ? 'Disabled: critical protocol problems.' : config.llm_mode === 'live' ? (config.confirm_paid_calls ? 'Paid LLM calls are confirmed and capped for this experiment.' : 'Confirm paid calls above to enable the run.') : config.llm_mode === 'mock' ? 'Mock LLM mode: no paid calls.' : 'Rules only: no model calls.'}</p>
    </div>
   </Panel>

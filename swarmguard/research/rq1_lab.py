@@ -44,7 +44,7 @@ from swarmguard.evaluation.results import ExperimentResults
 from swarmguard.evaluation.runner import MonitorSideEffectError, _fingerprint, run_stage2_experiment
 from swarmguard.models.adversarial import StrictModel
 from swarmguard.models.risk import RULESET_VERSION, ObservationWindow
-from swarmguard.research import rq1_llm
+from swarmguard.research import rq1_llm, rq1_followup
 from swarmguard.research.rq1_llm import LLM_CONFIGS, LLM_GLOBAL, LLM_LABEL, LLM_LOCAL, LLMFactory, LLMStatus
 from swarmguard.monitoring.assessment import is_alert
 from swarmguard.monitoring.global_monitor import GlobalWorkflowMonitor
@@ -95,7 +95,7 @@ UNAVAILABLE_OPTIONS = {
 
 
 class RQ1ExperimentConfig(StrictModel):
-    partition: Literal["held_out", "development"] = "held_out"
+    partition: Literal["held_out", "development", "rq1_robustness_60"] = "held_out"
     scenario_ids: list[str] | None = Field(default=None, max_length=64)
     seed: int = Field(default=rq1.PRIMARY_SEED, ge=0, le=1_000_000)
     trials: int = Field(default=1, ge=1, le=3, description="Trial 1 is scored; later trials are reproducibility checks")
@@ -112,6 +112,8 @@ class RQ1ExperimentConfig(StrictModel):
 
     @model_validator(mode="after")
     def _paired(self) -> RQ1ExperimentConfig:
+        if self.partition == rq1_followup.PARTITION and (self.trials != 1 or self.llm_mode != "none" or self.scenario_ids is not None or self.seed != 0):
+            raise ValueError("The 60-workflow follow-up requires all 60 scenarios, seed 0, one execution per scenario and rules-only monitoring")
         if sorted(self.monitors) != sorted([LOCAL, GLOBAL]):
             raise ValueError("RQ1 requires exactly the paired local_action and global_workflow monitors")
         if self.scenario_ids is not None and (not self.scenario_ids or len(set(self.scenario_ids)) != len(self.scenario_ids)):
@@ -134,16 +136,16 @@ def recommended_config(live_available: bool = False) -> dict[str, Any]:
 
 def dataset_summaries() -> list[dict[str, Any]]:
     out = []
-    for partition in rq1.PARTITIONS:
-        m = rq1.dataset_manifest(partition)
+    for partition in rq1_followup.PARTITIONS:
+        m = rq1_followup.dataset_manifest(partition)
         labels = Counter(s["label"] for s in m["scenarios"])
         out.append({
             "partition": partition, "dataset_version": m["dataset_version"], "content_hash": m["content_hash"],
             "n": m["n"], "unsafe": labels.get("UNSAFE", 0), "legitimate": labels.get("SAFE", 0),
             "composition": m["composition"], "categories": sorted(m["composition"]),
-            "frozen": partition == "held_out", "matches_frozen_hash": m["content_hash"] == FROZEN_DATASET_HASH,
+            "frozen": partition != "development", "matches_frozen_hash": rq1_followup.frozen() if partition == rq1_followup.PARTITION else m["content_hash"] == FROZEN_DATASET_HASH,
             "role": "Primary RQ1 evidence (frozen held-out set)" if partition == "held_out"
-                    else "Development and pilot only; never RQ1 evidence",
+                    else "Post-005 follow-up: 60 distinct workflows; 48 legitimate, 12 unsafe" if partition == rq1_followup.PARTITION else "Development and pilot only; never RQ1 evidence",
             "scenarios": [{"scenario_id": s["scenario_id"], "category": s["category"], "family": s["family"],
                            "label": s["label"]} for s in m["scenarios"]]})
     return out
@@ -219,7 +221,7 @@ async def validate_config(config: RQ1ExperimentConfig, llm_status: dict[str, Any
     def add(check_id: str, title: str, status: str, detail: str) -> None:
         checks.append({"id": check_id, "title": title, "status": status, "detail": detail})
 
-    manifest = rq1.dataset_manifest(config.partition)
+    manifest = rq1_followup.dataset_manifest(config.partition)
     known = {s["scenario_id"] for s in manifest["scenarios"]}
     unknown = sorted(set(config.scenario_ids or []) - known)
     selected = [s for s in manifest["scenarios"] if config.scenario_ids is None or s["scenario_id"] in config.scenario_ids]
@@ -229,6 +231,9 @@ async def validate_config(config: RQ1ExperimentConfig, llm_status: dict[str, Any
     elif config.partition == "held_out" and manifest["content_hash"] != FROZEN_DATASET_HASH:
         add("dataset", "Dataset exists", "FAIL", f"Held-out content hash {manifest['content_hash'][:16]}… differs "
             f"from the frozen protocol hash {FROZEN_DATASET_HASH[:16]}…")
+    elif config.partition == rq1_followup.PARTITION:
+        add("dataset", "Frozen follow-up dataset and protocol", "PASS" if rq1_followup.frozen() else "FAIL",
+            f"{manifest['dataset_version']}, {manifest['n']} workflows; freeze {'matches' if rq1_followup.frozen() else 'missing or changed'}. Follow-up designed after Experiment 005.")
     elif config.partition == "development":
         add("dataset", "Dataset exists", "WARN", f"Development partition ({manifest['n']} Stage 2 scenarios, hash "
             f"{manifest['content_hash'][:16]}…): debugging and pilot only, never RQ1 evidence.")
@@ -263,9 +268,9 @@ async def validate_config(config: RQ1ExperimentConfig, llm_status: dict[str, Any
         f"Both monitors use the same RiskAnalyzer rules ({RULESET_VERSION}), invariants and aggregation. No model, "
         "prompt or token budget is involved; only the observation window differs.")
     # Dataset validity (monitor-free) and observation boundary pre-check (monitor-free).
-    items = build_dataset(config.seed, config.scenario_ids, rq1.scenarios_for(config.partition)) if not unknown and selected else []
+    items = build_dataset(config.seed, config.scenario_ids, rq1_followup.scenarios_for(config.partition)) if not unknown and selected else []
     if items:
-        validity = await rq1.validate_dataset(config.partition)
+        validity = await rq1_followup.validate_dataset(config.partition)
         rows = [r for r in validity["scenarios"] if r["scenario_id"] in {i.scenario.scenario_id for i in items}]
         invalid = [f"{r['scenario_id']}: {'; '.join(r.get('problems') or [r.get('error', 'invalid')])}" for r in rows if not r["valid"]]
         add("dataset_validity", "Workflows run and labels agree with the independent oracle", "FAIL" if invalid else "PASS",
@@ -301,7 +306,7 @@ async def validate_config(config: RQ1ExperimentConfig, llm_status: dict[str, Any
     prints = _fingerprints()
     changed = [k for k, v in prints.items() if not v["match"]]
     add("scoring", "Scoring rules are consistent", "PASS" if RULESET_VERSION == FROZEN_RULESET else "WARN",
-        f"Pre-registered workflow-level timely detection ({rq1.PROTOCOL_VERSION}); mapping: {POSITIVE_MAPPING}. "
+        f"Frozen workflow-level timely detection ({rq1_followup.PROTOCOL_VERSION if config.partition == rq1_followup.PARTITION else rq1.PROTOCOL_VERSION}); mapping: {POSITIVE_MAPPING}. "
         f"Ruleset {RULESET_VERSION}" + ("" if RULESET_VERSION == FROZEN_RULESET else f" differs from frozen {FROZEN_RULESET}") + ".")
     add("frozen_code", "Code matches the frozen protocol", "WARN" if changed else "PASS",
         f"Differs from the rq1-protocol-1 fingerprints: {', '.join(changed)}." if changed
@@ -448,11 +453,11 @@ def _capture_in_thread(item: DatasetItem, max_steps: int, llm_policy: str | None
 def _official_in_thread(experiment_id: str, config: RQ1ExperimentConfig, revision: str) -> ExperimentResults:
     stage2 = Stage2ExperimentConfig(experiment_id=experiment_id, seed=config.seed, scenario_ids=config.scenario_ids)
     return asyncio.run(run_stage2_experiment(stage2, clock=SystemClock(), revision=revision,
-                                             scenarios=rq1.scenarios_for(config.partition)))
+                                             scenarios=rq1_followup.scenarios_for(config.partition)))
 
 
 def _verify_in_thread(results: ExperimentResults, config: RQ1ExperimentConfig) -> dict[str, Any]:
-    return asyncio.run(rq1.verify_observations(results, rq1.scenarios_for(config.partition),
+    return asyncio.run(rq1.verify_observations(results, rq1_followup.scenarios_for(config.partition),
                                                timing_repeats=config.timing_repeats))
 
 
@@ -913,13 +918,14 @@ class RQ1Laboratory:
             raise ValueError("configuration is INVALID: " + "; ".join(
                 c["detail"] for c in validation["checks"] if c["status"] == "FAIL"))
         eid = self.db.next_id("rq1_experiment")
+        revision = json.loads(rq1_followup.FREEZE.read_text())["code_revision"] if config.partition == rq1_followup.PARTITION else self.revision
         record = {"experiment_id": eid, "research_question": "RQ1", "status": "QUEUED", "config": config.model_dump(),
                   "created_by": actor, "created_at": self._now(), "started_at": None, "completed_at": None,
                   "validation": validation, "preregistered_procedure": preregistered(config, validation["dataset_hash"]),
                   "progress": {"phase": "QUEUED", "total_workflows": validation["selected_scenarios"],
                                "completed_workflows": 0, "failed_workflows": 0, "current_workflow": None,
                                "current_scenario": None, "phases": []},
-                  "activity": [], "failures": [], "error": None, "code_revision": self.revision,
+                  "activity": [], "failures": [], "error": None, "code_revision": revision,
                   "execution_mode": "DETERMINISTIC_SIMULATION", "model_requests": 0, "estimated_cost_usd": 0.0,
                   "llm": {"mode": config.llm_mode, "checkpoint_policy": config.llm_checkpoints,
                           "protocol_version": rq1_llm.LLM_PROTOCOL_VERSION if config.llm_mode != "none" else None},
@@ -978,7 +984,7 @@ class RQ1Laboratory:
                 if validation["status"] == "INVALID":
                     raise RuntimeError("validation failed at run time: " + "; ".join(
                         c["detail"] for c in validation["checks"] if c["status"] == "FAIL"))
-                items = build_dataset(config.seed, config.scenario_ids, rq1.scenarios_for(config.partition))
+                items = build_dataset(config.seed, config.scenario_ids, rq1_followup.scenarios_for(config.partition))
                 runtime = mons = None
                 policy = config.llm_checkpoints if config.llm_mode != "none" else None
                 if policy:
@@ -1015,6 +1021,7 @@ class RQ1Laboratory:
                                      pack_evidence(ev, experiment_id, item.scenario.scenario_id),
                                      actor="swarmguard.rq1_laboratory", occurred_at=self._now())
                     record["activity"].extend(_activity(ev, item.scenario.scenario_id))
+                    progress["monitor_evaluations_completed"] = progress.get("monitor_evaluations_completed", 0) + len(ev["checkpoints"]) * 2
                     progress["completed_workflows"] += 1
                     save()
                 progress.update(current_workflow=None, current_scenario=None)
@@ -1022,7 +1029,10 @@ class RQ1Laboratory:
                     raise RuntimeError(f"{len(record['failures'])} workflows failed during execution")
                 phase("SCORING")
                 save()
-                results = await asyncio.to_thread(_official_in_thread, experiment_id, config, self.revision)
+                if config.partition == rq1_followup.PARTITION:
+                    results = rq1_followup.score(experiment_id, config, record["code_revision"], items, evidence, record["started_at"])
+                else:
+                    results = await asyncio.to_thread(_official_in_thread, experiment_id, config, self.revision)
                 official = {(c.workflow_id, c.step, c.configuration): c for c in results.checkpoints}
                 crosscheck = []
                 for wf, ev in evidence.items():
@@ -1035,7 +1045,8 @@ class RQ1Laboratory:
                     crosscheck.append("checkpoint counts differ between the evidence capture and the scored run")
                 phase("VERIFICATION")
                 save()
-                verification = await asyncio.to_thread(_verify_in_thread, results, config)
+                verification = (await rq1_followup.verify(evidence, results) if config.partition == rq1_followup.PARTITION
+                                else await asyncio.to_thread(_verify_in_thread, results, config))
                 reproducibility = []
                 for trial in range(2, config.trials + 1):
                     phase(f"REPRODUCIBILITY_TRIAL_{trial}")
@@ -1046,20 +1057,27 @@ class RQ1Laboratory:
                     reproducibility.append({"trial": trial, "predictions_identical": same_p, "checkpoints_identical": same_c})
                 phase("ANALYSIS")
                 save()
-                full = rq1.dataset_manifest(config.partition)
+                full = rq1_followup.dataset_manifest(config.partition)
                 manifest = {**full, "scenarios": [s for s in full["scenarios"]
                                                   if config.scenario_ids is None or s["scenario_id"] in config.scenario_ids]}
                 analysis = rq1.analyze(results, manifest)
                 derived = derive(results, analysis, verification, manifest, evidence, config, [], crosscheck)
+                if config.partition == rq1_followup.PARTITION:
+                    rq1_followup.followup_findings(derived, results, analysis, manifest)
                 llm_analysis = None
                 if policy:
                     llm_analysis = rq1_llm.analyze_llm(results, evidence, manifest, policy)
                     merge_llm(derived, llm_analysis, evidence, results, manifest, record["llm"], record["llm_usage"])
-                self.repo.create(RESULT_KIND, experiment_id, {
+                result_payload = {
                     "experiment_id": experiment_id, "results": results.model_dump(mode="json"), "analysis": analysis,
                     "verification": verification, "manifest": manifest, "crosscheck": crosscheck,
                     "reproducibility": reproducibility, "llm_analysis": llm_analysis, "llm": record["llm"],
-                    "llm_usage": record["llm_usage"], **derived}, actor="swarmguard.rq1_laboratory", occurred_at=self._now())
+                    "llm_usage": record["llm_usage"], **derived}
+                if config.partition == rq1_followup.PARTITION:
+                    result_payload["result_hashes"] = {k: hashlib.sha256(json.dumps(result_payload[k], sort_keys=True).encode()).hexdigest()
+                                                       for k in ("results", "manifest", "analysis", "verification")}
+                    result_payload["protocol_freeze"] = json.loads(rq1_followup.FREEZE.read_text())
+                self.repo.create(RESULT_KIND, experiment_id, result_payload, actor="swarmguard.rq1_laboratory", occurred_at=self._now())
                 problems = (crosscheck + verification["failures"] + analysis["missing_or_failed"] +
                             [f"trial {r['trial']} not reproduced" for r in reproducibility
                              if not (r["predictions_identical"] and r["checkpoints_identical"])] +

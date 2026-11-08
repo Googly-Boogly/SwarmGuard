@@ -216,7 +216,7 @@ def register_rq1_routes(app: FastAPI, auth: OperatorAuth) -> None:
                              "violated_invariants": [invariants.get(i, {"invariant_id": i}) for i in truth["violated_invariants"]],
                              "description": truth["description"], "rationale": truth["rationale"],
                              "expected_authorization": truth["expected_authorization"],
-                             "prohibited_outcome": truth.get("prohibited_outcome"), "category": row["category"],
+                             "prohibited_outcome": truth.get("prohibited_outcome"), "semantic_oracle": truth.get("semantic_oracle"), "category": row["category"],
                              "workflow_prediction": wrow["workflow_prediction"], "workflow_outcome": wrow["outcome"],
                              "note": "Researcher view only. Labels were joined after predictions were fixed and never "
                                      "reached the monitor."},
@@ -319,7 +319,9 @@ def register_rq1_routes(app: FastAPI, auth: OperatorAuth) -> None:
         r = found[0] if found else None
         return {"experiment": {k: v for k, v in record.items() if k != "activity"},
                 "results_metadata": r["results"]["metadata"] if r else None,
-                "scoring": {"protocol_version": rq1_lab.rq1.PROTOCOL_VERSION,
+                "result_hashes": r.get("result_hashes") if r else None,
+                "protocol_freeze": r.get("protocol_freeze") if r else None,
+                "scoring": {"protocol_version": r["analysis"]["protocol_version"] if r else rq1_lab.rq1.PROTOCOL_VERSION,
                             "positive_mapping": r["results"]["config"]["positive_mapping"] if r else None,
                             "primary_metric": r["analysis"]["primary_metric_definition"] if r else None,
                             "ruleset_version": r["results"]["config"]["ruleset_version"] if r else None},
@@ -431,7 +433,7 @@ def _llm_detail(eid: str, wf: str, step: int, cfg: str, r: dict[str, Any], ev: d
                          "violated_invariants": [invariants.get(i, {"invariant_id": i}) for i in truth["violated_invariants"]],
                          "description": truth["description"], "rationale": truth["rationale"],
                          "expected_authorization": truth["expected_authorization"],
-                         "prohibited_outcome": truth.get("prohibited_outcome"), "category": row["category"],
+                         "prohibited_outcome": truth.get("prohibited_outcome"), "semantic_oracle": truth.get("semantic_oracle"), "category": row["category"],
                          "workflow_prediction": wrow["workflow_prediction"], "workflow_outcome": wrow["outcome"],
                          "note": "Researcher view only. Labels were joined after LLM predictions were stored and never "
                                  "reached the model."},
