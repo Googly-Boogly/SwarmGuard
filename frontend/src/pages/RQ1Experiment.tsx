@@ -9,6 +9,7 @@ import { isTerminal, label, num, pct, seriesColors, signed, useRQ1, type Experim
 import { CopyButton, KV, OriginalJson, Section, Stat, Swatch, Tag } from '../rq1/components'
 import { RawDataTab } from '../rq1/RawData'
 import { ComparisonTab, FailureTab, ScenarioTab, WorkflowTab } from '../rq1/Explorers'
+import { HypothesisVerdicts } from '../rq1/Hypotheses'
 import { ValidationReport } from './RQ1Lab'
 import '../rq1/rq1.css'
 
@@ -48,7 +49,7 @@ export function RQ1ExperimentPage() {
    tab === 'scenarios' ? <ScenarioTab eid={eid} selected={params.get('scenario')} onSelect={s => go('scenarios', { scenario: s })} onCompare={wf => go('comparisons', { wf })} onWorkflow={wf => go('workflow', { wf })}/> :
    tab === 'comparisons' ? <ComparisonTab eid={eid} selected={params.get('wf')} onSelect={wf => go('comparisons', { wf })}/> :
    tab === 'failures' ? <FailureTab eid={eid} onCompare={wf => go('comparisons', { wf })} onWorkflow={wf => go('workflow', { wf })}/> :
-   tab === 'findings' ? <FindingsTab f={results.data.findings} onScenario={s => go('scenarios', { scenario: s })}/> : null}
+   tab === 'findings' ? <FindingsTab eid={eid} f={results.data.findings} onScenario={s => go('scenarios', { scenario: s })}/> : null}
  </>
 }
 
@@ -129,7 +130,8 @@ function OverviewTab({ e, r }: { e: Experiment; r: Results }) {
   </Panel>
   <Panel title="Interpretation" subtitle={f.statement}>
    <div className="rq1-body">
-    <p><RuleTag rule={f.decision_rule}/> <b>Pre-registered decision rule{f.decision_rule.applies ? '' : ' (orientation only)'}:</b> {f.decision_rule.note}</p>
+    <HypothesisVerdicts eid={e.experiment_id} compact/>
+    <p><RuleTag rule={f.decision_rule}/> <b>Decision rule recorded at run time (rules arms only){f.decision_rule.applies ? '' : ', orientation only'}:</b> {f.decision_rule.note}</p>
     <p>{f.detection_performance}</p><p>{f.false_positives}</p>
    </div>
   </Panel>
@@ -216,13 +218,14 @@ function LLMMetrics({ r }: { r: Results }) {
  </>
 }
 
-function FindingsTab({ f, onScenario }: { f: Findings; onScenario: (s: string) => void }) {
+function FindingsTab({ eid, f, onScenario }: { eid: string; f: Findings; onScenario: (s: string) => void }) {
  const sections: [string, string][] = [...Object.entries(f.followup_sections ?? {}), ...(f.llm_performance ? [['LLM arm', f.llm_performance] as [string, string]] : []), ['Experiment summary', f.experiment_summary], ['Detection performance', f.detection_performance], ['False positives', f.false_positives], ['Detection latency', f.detection_latency], ['Context analysis', f.context_analysis], ['Gateway and prevention', f.gateway_and_prevention]]
  const cases: [string, string][] = [['only_global_ids', 'Detected only by Global'], ['only_local_ids', 'Detected only by Local'], ['neither_ids', 'Missed by both']]
  return <Panel title="Research findings" subtitle={f.statement} action={<div className="rq1-row-actions"><CopyButton text={f.copy.results_summary} label="COPY RESULTS SUMMARY" testId="copy-summary"/><CopyButton text={f.copy.metrics_table} label="COPY METRICS TABLE"/><CopyButton text={f.copy.methodology} label="COPY METHODOLOGY DETAILS"/><CopyButton text={f.copy.limitations} label="COPY LIMITATIONS"/></div>}>
   <div className="rq1-body">
    <Section title="Research question"><p>{f.research_question}</p></Section>
-   <Section title="Pre-registered decision rule"><p><RuleTag rule={f.decision_rule}/> {f.decision_rule.note}</p>
+   <HypothesisVerdicts eid={eid}/>
+   <Section title="Decision rule recorded at run time (rules arms only)"><p><RuleTag rule={f.decision_rule}/> {f.decision_rule.note}</p>
     {f.decision_rule.global_recall_higher !== undefined && <ul className="rq1-list"><li>Global recall exceeds Local recall: {String(f.decision_rule.global_recall_higher)}</li><li>Global FPR ≤ Local FPR + 1/12: {String(f.decision_rule.fpr_within_margin)}</li><li>All observation-boundary checks passed: {String(f.decision_rule.observation_checks_passed)}</li></ul>}</Section>
    {sections.map(([t, body]) => <Section key={t} title={t}><p>{body}</p></Section>)}
    <Section title="Interesting cases">{cases.map(([k, name]) => <p key={k}><b>{name}:</b> {(f.interesting_cases[k] ?? []).length ? f.interesting_cases[k].map(s => <button key={s} className="link-text" style={{ marginRight: 10, background: 'none', border: 0, color: 'var(--accent)', padding: 0 }} onClick={() => onScenario(s)}>{s}</button>) : <span className="muted">none</span>}</p>)}</Section>

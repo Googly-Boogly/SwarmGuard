@@ -18,6 +18,30 @@ Use existing run_framework_evaluation.py for external frameworks and run_ethics_
 
 Open **Research → RQ1 Laboratory** (`/research/rq1`). **NEW EXPERIMENT** opens the configuration; **USE RECOMMENDED RQ1 SETTINGS** selects the pre-registered procedure (frozen held-out dataset, all 24 workflows, seed 0, one trial) and **Use pilot settings** selects the two development pilot scenarios. **VALIDATE METHODOLOGY** runs monitor-free checks on the server; **RUN RQ1 EXPERIMENT** is enabled only after the current settings validate without critical problems. The experiment page shows live progress and recorded events, then the results tabs. Raw Data has checkpoint-level and workflow-level views with server-side filters, sorting, paging, quick views (for example "Local missed unsafe workflows", "Global false positives"), copy buttons and a record panel showing the exact monitor input and output, ground truth, gateway decision and outcome. Results are stored in the console database and stay available after restarts. Runs are deterministic and synthetic; the decision rule decides H1 only for the pre-registered procedure.
 
+### Pre-registered hypothesis verdicts
+
+The decision rules written in the RQ1 protocols are transcribed as data in `research/rq1/hypothesis_registry.json` (`rq1-hypotheses-1`). Each entry quotes its source protocol and pins that document's sha256. `swarmguard/research/hypotheses.py` evaluates every rule registered for an experiment's dataset against the experiment's **stored** record and result. It never reruns a workflow or writes anything. Arithmetic is exact over the stored TP/FP/TN/FN counts.
+
+Each rule gets one verdict:
+- **SUPPORTED:** every condition holds. This is descriptive support on this constructed dataset only.
+- **H0_RETAINED:** at least one condition fails, including an integrity condition, as the protocols state.
+- **INCONCLUSIVE:** the protocol says UNKNOWN predictions make the run inconclusive, or a metric is undefined (zero denominator).
+- **NOT_APPLICABLE:** the run is not the registered procedure (wrong dataset or hash, a subset, the wrong seed or mode, or a synthetic provider). Its conditions are shown for orientation only.
+
+Mock LLM outputs can never support an LLM hypothesis. In an LLM run, a rules-arm hypothesis is marked `secondary`.
+
+Where to see verdicts:
+- **Browser:** the experiment's Overview and Research Findings tabs.
+- **API:** `GET /api/research/rq1/experiments/{id}/hypotheses` (researcher session, read-only).
+- **CLI**, offline:
+  - `python run_hypothesis_check.py --snapshot research/rq1/experiment_006_snapshot.json`
+  - `python run_hypothesis_check.py --db <copy of console db> --all` (opened with `mode=ro`)
+  - `--output` never overwrites an existing file.
+
+The older `decision_rule` stored at run time covers the rules arms only. It is kept unchanged as a historical record.
+
+**Adding a new experiment:** add its hypothesis entry before the protocol is frozen, then list `research/rq1/hypothesis_registry.json` in that experiment's freeze `files`. Never edit an existing entry after outcomes are seen. A correction needs a new entry and a new `registry_version`.
+
 ### RQ1 with LLM monitors
 
 The configuration's **LLM monitors** section adds LLM Local and LLM Global (one `GeneralSafetyMonitor` on the Local vs. Global view of the same snapshot; protocol `docs/RQ1_LLM_PROTOCOL.md`). **Mock** runs the LLM pipeline with a synthetic responder (no model, never evidence). **Live** calls the configured OpenAI model and is offered only when the console was started with `SWARMGUARD_CONSOLE_LIVE_LLM=1` and `.env` has `OPENAI_API_KEY`, `SWARMGUARD_OPENAI_MODEL` and positive `SWARMGUARD_PRICE_*_USD_PER_MTOK`; each run also needs a request cap, a dollar cap and the paid-call confirmation. Validation shows the number of calls and the worst-case cost before anything runs. For example:

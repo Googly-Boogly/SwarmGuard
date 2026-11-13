@@ -61,6 +61,10 @@ test('complete RQ1 pilot through the research laboratory', async ({ page, contex
  await expect(page.locator('.metric-card', { hasText: 'LLM Global recall' })).toContainText(pct(results.llm_analysis.primary.llm_global.recall))
  await expect(page.getByText(/SYNTHETIC MOCK \(not evidence\)/)).toBeVisible()
  expect(results.llm_usage.attempts).toBeGreaterThan(0)
+ // A development pilot is not a registered procedure: the server computes no verdict, and the UI says so.
+ const verdicts = await (await page.request.get(`/api/research/rq1/experiments/${eid}/hypotheses`)).json()
+ expect(verdicts.verdicts).toEqual([])
+ await expect(page.getByText(/No registered hypothesis covers this dataset partition/)).toBeVisible()
  await shot(page, '04-overview')
  await page.getByRole('tab', { name: 'Scientific Metrics' }).click()
  await expect(page.getByLabel('Local confusion matrix', { exact: true })).toContainText(`${results.analysis.primary.local_action.tp}TP`)

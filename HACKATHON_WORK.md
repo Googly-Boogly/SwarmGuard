@@ -533,3 +533,43 @@ untouched): COMPLETED, 556 synthetic LLM calls, rules arms reproduced 006 exactl
 validation (no calls) passes all protocol/isolation checks but reports a worst-case estimate of
 $22.53 for 556 calls at the 80,000-token output cap, above the $10 server cap. No live LLM call
 has been made for 008.
+
+## Pre-registered hypothesis verdict engine (2026-11-13)
+
+Problem: the software computed only the rules-arm `decision_rule`. Experiment 008's stored headline therefore read
+`satisfied = true`, while its primary pre-registered hypothesis (H1-LLM) was never evaluated (issue I-2 in
+`EXPERIMENT_008_SCIENTIFIC_ANALYSIS.md`).
+
+Added (all in new files except a one-line route registration in `swarmguard/console/api.py` and the UI):
+- `research/rq1/hypothesis_registry.json` (`rq1-hypotheses-1`): word-faithful transcriptions of the four decision
+  rules already written in `rq1-protocol-1`, `rq1-llm-protocol-1`, `rq1-006-protocol-1` and `rq1-008-llm-protocol-1`.
+  Each entry pins its source document's sha256, and a test checks every quote against that document. They were
+  transcribed **after** 005/006/008 ran. This is not a new pre-registration, and no threshold was chosen here.
+- `swarmguard/research/hypotheses.py`: exact (`Fraction`) evaluation of the stored counts, with verdicts SUPPORTED,
+  H0_RETAINED, INCONCLUSIVE and NOT_APPLICABLE. Mock or synthetic outputs can never support an LLM hypothesis.
+- `GET /api/research/rq1/experiments/{id}/hypotheses` (researcher session, read-only), verdict panels in the
+  Overview and Findings tabs, and `run_hypothesis_check.py` (snapshot or `mode=ro` database, exclusive `--output`).
+
+Not changed:
+- No frozen file. The 008 freeze still matches, so the 008 configuration is not locked out.
+- No stored record, `decision_rule`, result file, detector, prompt, label or dataset. The run-time `decision_rule` is
+  relabelled in the UI as "rules arms only".
+- No experiment was rerun and no LLM call was made.
+
+Measured verdicts from stored records:
+- **005:** rules H1 SUPPORTED, matching its stored rule. **rq1-llm-protocol-1 H1: H0_RETAINED.** The LLM recall was
+  tied at 12/12 vs 12/12. The run met every applicability condition of `RQ1_LLM_PROTOCOL.md` §4 (live, complete
+  held-out set, seed 0, no UNKNOWN), so this rule applied. The README describes the 005 LLM arm as "exploratory",
+  and that wording was left for the owner to reconcile.
+- **006:** SUPPORTED, matching its stored rule.
+- **008:** no public snapshot exists. A test fixture built from the counts in the 008 analysis gives H1-LLM
+  H0_RETAINED (conditions a and b fail), with the 006 rules criterion as a secondary SUPPORTED. To confirm on the
+  real record, run `run_hypothesis_check.py --db <read-only backup> --experiment rq1_experiment_008`.
+
+Verification:
+- Backend: 692 passed / 12 skipped offline (34 of them new in `tests/test_hypotheses.py`).
+- Frontend: lint, 54 unit tests and build all pass.
+- Isolated Playwright RQ1 pilot passes with the new verdict assertion.
+- The demo, Stage 2 and Stage 3 demonstrations all print PASS.
+- Pre-existing failure, not caused by this change: `rq1.spec.ts` "60-workflow follow-up" also fails on clean HEAD.
+  It still expects the LLM-mode selector to be disabled, which the Experiment 008 preparation changed.

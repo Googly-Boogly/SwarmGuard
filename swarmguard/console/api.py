@@ -142,6 +142,8 @@ def create_console_app(db_path: str | Path = "swarmguard_console.db", *,
     # Registered before the generic /api/research/{section} route so /api/research/rq1 resolves here.
     from swarmguard.console.rq1_routes import register_rq1_routes
     register_rq1_routes(app, auth)
+    from swarmguard.console.hypothesis_routes import register_hypothesis_routes
+    register_hypothesis_routes(app, auth)
     from swarmguard.console.research import register_research_routes
     register_research_routes(app, auth)
     from swarmguard.console.laboratory import register_laboratory_routes

@@ -66,3 +66,4 @@
 .rq1-row-actions{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
 .rq1-toast{font-size:11px;color:var(--accent)}
 @media(max-width:760px){.rq1-stream li{grid-template-columns:1fr}.rq1-check{grid-template-columns:1fr}.rq1-kv{grid-template-columns:1fr}}
+.rq1-verdict{padding:6px 0 10px}.rq1-verdict+.rq1-verdict{border-top:1px dashed var(--border)}

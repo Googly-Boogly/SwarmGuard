@@ -6,7 +6,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { RQ1LabPage, ValidationReport } from './pages/RQ1Lab'
 import { RawDataTab } from './rq1/RawData'
 import { CopyButton, OriginalJson, Tag } from './rq1/components'
-import type { Overview, RawPage, Validation } from './rq1/api'
+import type { HypothesisReport, HypothesisVerdict, Overview, RawPage, Validation } from './rq1/api'
+import { HypothesisVerdicts } from './rq1/Hypotheses'
 
 afterEach(() => vi.unstubAllGlobals())
 
@@ -173,4 +174,38 @@ it('selects the 60-workflow follow-up, disables repeats, allows the LLM arm, and
  await waitFor(() => expect(screen.getByRole('button', { name: 'RUN EXPERIMENT 008' })).toBeEnabled())
  const sent = JSON.parse(String(fetch.mock.calls.find(c => c[0] === '/api/research/rq1/validate')![1]!.body))
  expect(sent).toMatchObject({ partition: 'rq1_robustness_60', scenario_ids: null, trials: 1, seed: 0, llm_mode: 'none', monitors: ['local_action', 'global_workflow'] })
+})
+
+describe('pre-registered hypothesis verdicts', () => {
+ const cond = (id: string, status: 'PASS' | 'FAIL' | 'UNDEFINED', text: string) => ({ id, text, kind: 'metric' as const, status, detail: `${text} detail` })
+ const verdict = (over: Partial<HypothesisVerdict>): HypothesisVerdict => ({ hypothesis_id: 'rq1-008-llm-protocol-1/H1-LLM', protocol_version: 'rq1-008-llm-protocol-1', statement: 'LLM statement.', role: 'primary', role_note: null, status: 'H0_RETAINED', note: 'Condition(s) a, b not met: H0 is retained on this dataset.', applicable: true, applicability_reasons: [], conditions: [cond('a', 'FAIL', 'LLM Global recall exceeds LLM Local recall'), cond('b', 'FAIL', 'Observed LLM Global FPR is at most 10%'), cond('c', 'PASS', 'LLM Global FPR is no higher than LLM Local FPR')], source: { document: 'research/rq1/experiment_008_protocol.md', sha256: 'c'.repeat(64), section: 'Question and hypotheses', quoted_text: 'q' }, transcribed_at: '2026-11-13', source_document_unchanged: true, ...over })
+ const report: HypothesisReport = { engine_version: 'hypothesis-engine-1', experiment_id: 'rq1_experiment_008', registry: { version: 'rq1-hypotheses-1', sha256: 'd'.repeat(64), path: 'research/rq1/hypothesis_registry.json' }, computed_from: 'stored', primary_summary: 'rq1-008-llm-protocol-1/H1-LLM: H0_RETAINED', primary: [{ hypothesis_id: 'rq1-008-llm-protocol-1/H1-LLM', status: 'H0_RETAINED' }],
+  verdicts: [verdict({}), verdict({ hypothesis_id: 'rq1-006-protocol-1/H1', role: 'secondary', role_note: 'non-blind reproduction', status: 'SUPPORTED', note: 'Every registered condition holds.', conditions: [cond('a', 'PASS', 'Global recall exceeds Local recall')] }), verdict({ hypothesis_id: 'other/H1', applicable: false, status: 'NOT_APPLICABLE', applicability_reasons: ['seed is 1, not 0'] })] }
+
+ it('shows every verdict with its conditions, role and source, and requests the read-only endpoint', async () => {
+  const fetch = api(() => report)
+  mount(<HypothesisVerdicts eid="rq1_experiment_008"/>)
+  const primary = await screen.findByLabelText('Verdict rq1-008-llm-protocol-1/H1-LLM')
+  expect(within(primary).getByText('H0 RETAINED')).toBeInTheDocument()
+  expect(within(primary).getAllByText('FAIL')).toHaveLength(2)
+  expect(within(primary).getByText(/experiment_008_protocol\.md/)).toBeInTheDocument()
+  expect(within(screen.getByLabelText('Verdict rq1-006-protocol-1/H1')).getByText(/secondary \(non-blind reproduction\)/)).toBeInTheDocument()
+  expect(screen.getByText(/Not the registered procedure: seed is 1, not 0/)).toBeInTheDocument()
+  expect(String(fetch.mock.calls[0][0])).toBe('/api/research/rq1/experiments/rq1_experiment_008/hypotheses')
+  expect(fetch.mock.calls[0][1]?.method ?? 'GET').toBe('GET')
+ })
+
+ it('compact view hides non-applicable verdicts and states when nothing applies', async () => {
+  api(() => ({ ...report, verdicts: [report.verdicts[2]], primary: [], primary_summary: 'No registered hypothesis applies to this run as configured; every comparison is descriptive.' }))
+  mount(<HypothesisVerdicts eid="rq1_experiment_009" compact/>)
+  expect(await screen.findByText(/every comparison is descriptive/)).toBeInTheDocument()
+  expect(screen.queryByLabelText('Verdict other/H1')).toBeNull()
+ })
+
+ it('shows a server error instead of a verdict', async () => {
+  vi.stubGlobal('fetch', vi.fn(async () => ({ ok: false, status: 500, statusText: 'Error', json: async () => ({ detail: 'hypothesis verdicts could not be computed: KeyError' }) })))
+  mount(<HypothesisVerdicts eid="rq1_experiment_010"/>)
+  expect(await screen.findByText(/could not be computed/)).toBeInTheDocument()
+  expect(screen.queryByText('SUPPORTED')).toBeNull()
+ })
 })
